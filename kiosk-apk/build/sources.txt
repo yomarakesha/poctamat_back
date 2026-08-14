@@ -1,0 +1,2 @@
+C:\Users\yomarakesha\Desktop\projects\poctamat\kiosk-apk\src\com\poctamat\kiosk\MainActivity.java
+C:\Users\yomarakesha\Desktop\projects\poctamat\kiosk-apk\build\gen\com\poctamat\kiosk\R.java

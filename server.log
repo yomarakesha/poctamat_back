@@ -1,0 +1,104 @@
+2026-08-05 16:30:27,309 INFO Locker proxy on http://0.0.0.0:8090  ->  http://192.168.11.242:8088  [DRY_RUN (safe)]
+2026-08-05 16:30:29,122 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:30:29,412 WARNING upstream GET /GetBoxList attempt 2/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:30:29,740 INFO 192.168.11.29 - "GET /api/health HTTP/1.1" 200 -
+2026-08-05 16:31:44,165 INFO 192.168.11.29 - "GET / HTTP/1.1" 200 -
+2026-08-05 16:31:44,267 INFO 192.168.11.29 - code 404, message Not Found
+2026-08-05 16:31:44,268 INFO 192.168.11.29 - "GET /favicon.ico HTTP/1.1" 404 -
+2026-08-05 16:31:44,296 INFO 192.168.11.29 - "GET / HTTP/1.1" 200 -
+2026-08-05 16:31:44,298 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:31:44,345 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:31:44,684 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:31:59,648 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:31:59,973 WARNING upstream GET /GetBoxList attempt 2/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:00,258 WARNING upstream GET /GetBoxList attempt 3/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:00,566 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:00,612 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:00,936 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:14,652 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:14,684 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:14,993 WARNING upstream GET /GetBoxList attempt 2/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:15,317 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:29,670 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:30,009 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:30,073 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:44,666 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:44,705 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:45,024 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:32:59,651 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:32:59,960 WARNING upstream GET /GetBoxList attempt 2/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:33:00,285 WARNING upstream GET /GetBoxList attempt 3/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:33:00,610 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:00,659 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:14,652 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:33:14,964 WARNING upstream GET /GetBoxList attempt 2/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:33:15,288 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:15,349 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:29,648 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:29,697 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:44,664 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:33:44,990 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:45,049 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:33:59,650 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:33:59,959 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:34:14,646 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:34:14,969 WARNING upstream GET /GetBoxList attempt 2/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:34:15,276 WARNING upstream GET /GetBoxList attempt 3/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:34:15,587 WARNING upstream GET /GetBoxList attempt 4/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:34:15,887 WARNING upstream GET /GetBoxList attempt 5/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:34:16,138 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 502 -
+2026-08-05 16:34:21,303 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:34:21,619 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:44:55,376 INFO 192.168.11.29 - "GET / HTTP/1.1" 200 -
+2026-08-05 16:44:55,459 INFO 192.168.11.29 - code 404, message Not Found
+2026-08-05 16:44:55,459 INFO 192.168.11.29 - "GET /favicon.ico HTTP/1.1" 404 -
+2026-08-05 16:44:55,485 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:44:55,745 INFO 192.168.11.29 - "GET / HTTP/1.1" 200 -
+2026-08-05 16:44:55,811 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:44:56,115 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:10,637 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:45:10,943 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:11,673 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:45:12,012 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:25,652 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:45:25,957 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:26,643 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:40,652 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:41,683 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:55,640 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:45:56,673 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:45:56,983 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:46:10,647 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:46:10,966 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:46:11,670 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:46:11,984 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:46:25,648 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:46:25,832 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:46:40,648 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:46:41,682 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:46:56,664 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:47:11,663 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:47:26,651 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:47:41,648 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:47:41,956 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:47:44,646 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:47:44,945 WARNING upstream GET /GetBoxList attempt 2/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:47:45,271 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:48:42,654 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:48:43,008 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:48:44,653 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:49:43,645 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:49:43,957 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:49:44,679 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:50:44,642 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:50:44,671 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:50:44,989 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:51:44,641 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:51:44,959 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:51:45,002 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:51:45,313 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:52:44,677 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:52:44,727 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:53:44,640 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -
+2026-08-05 16:53:44,688 WARNING upstream GET /GetBoxList attempt 1/5 failed: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
+2026-08-05 16:53:45,009 INFO 192.168.11.29 - "GET /api/cells HTTP/1.1" 200 -

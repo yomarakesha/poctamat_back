@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Локер — управление</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #1a1d24; --edge: #2a2f3a; --text: #e6e9ef;
+    --muted: #9aa3b2; --free: #1f6f43; --occupied: #7a4a1f; --special: #6b2f5a;
+    --accent: #3b82f6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 16px 20px; border-bottom: 1px solid var(--edge); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  .badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .dry { background: #14532d; color: #86efac; }
+  .live { background: #7f1d1d; color: #fca5a5; }
+  .muted { color: var(--muted); font-size: 13px; }
+  main { padding: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; max-width: 900px; }
+  .cell {
+    aspect-ratio: 1; border: 1px solid var(--edge); border-radius: 10px; background: var(--panel);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    cursor: pointer; transition: transform .08s, border-color .15s; user-select: none;
+  }
+  .cell:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .cell .n { font-size: 20px; font-weight: 700; }
+  .cell .st { font-size: 11px; color: var(--muted); }
+  .s0 { background: var(--free); }
+  .s1 { background: var(--occupied); }
+  .s2 { background: var(--special); }
+  .legend { display: flex; gap: 16px; margin: 14px 0 4px; flex-wrap: wrap; font-size: 13px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  button.refresh { margin-left: auto; background: var(--panel); color: var(--text); border: 1px solid var(--edge); padding: 6px 14px; border-radius: 8px; cursor: pointer; }
+  button.refresh:hover { border-color: var(--accent); }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--edge); padding: 10px 18px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Локер — 43 ячейки</h1>
+  <span id="mode" class="badge">…</span>
+  <span id="conn" class="muted">подключение…</span>
+  <button class="refresh" onclick="load()">Обновить</button>
+</header>
+<main>
+  <div class="legend">
+    <span><i class="dot s0"></i> свободна</span>
+    <span><i class="dot s1"></i> занята</span>
+    <span><i class="dot s2"></i> особая</span>
+  </div>
+  <div id="grid" class="grid"></div>
+</main>
+<div id="toast"></div>
+<script>
+const STATE = { 0: "свободна", 1: "занята", 2: "особая" };
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+async function load() {
+  const conn = document.getElementById("conn");
+  const mode = document.getElementById("mode");
+  try {
+    const r = await fetch("/api/cells");
+    const d = await r.json();
+    mode.textContent = d.dryRun ? "DRY_RUN (безопасно)" : "LIVE — открывает реально";
+    mode.className = "badge " + (d.dryRun ? "dry" : "live");
+    conn.textContent = `терминал ок · ${d.count} ячеек`;
+    render(d.cells, d.dryRun);
+  } catch (e) {
+    conn.textContent = "нет связи с сервером";
+    mode.textContent = "—"; mode.className = "badge";
+  }
+}
+
+function render(cells, dryRun) {
+  const g = document.getElementById("grid");
+  g.innerHTML = "";
+  for (const c of cells) {
+    const div = document.createElement("div");
+    div.className = "cell s" + c.state;
+    div.innerHTML = `<span class="n">${c.boxNumber}</span><span class="st">${STATE[c.state] ?? c.state}</span>`;
+    div.onclick = () => openCell(c, dryRun);
+    g.appendChild(div);
+  }
+}
+
+async function openCell(c, dryRun) {
+  const warn = dryRun
+    ? `Открыть ячейку ${c.boxNumber}?\n\nDRY_RUN включён — команда НЕ уйдёт, только залогируется.`
+    : `⚠ LIVE-режим. Ячейка ${c.boxNumber} откроется РЕАЛЬНО.\n\nСостояние: ${STATE[c.state] ?? c.state}. Продолжить?`;
+  if (!confirm(warn)) return;
+  try {
+    const r = await fetch("/api/open/" + c.boxNumber, { method: "POST" });
+    const d = await r.json();
+    toast(d.sent ? `Ячейка ${c.boxNumber}: команда отправлена` : `Ячейка ${c.boxNumber}: DRY_RUN, не отправлено`);
+  } catch (e) {
+    toast("Ошибка открытия");
+  }
+}
+
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>
