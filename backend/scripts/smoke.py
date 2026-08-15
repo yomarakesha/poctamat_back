@@ -1,0 +1,255 @@
+"""Walks the API end to end and prints what every call returned.
+
+Runs the application in-process over an ASGI transport rather than against a
+running server. That is deliberate: one-time codes and rate-limit counters live
+in an in-process key-value store (see app/core/kvstore.py), so a script talking
+to a separate uvicorn process could never read the code it needs to complete the
+login flow. In-process, it can.
+
+The database is a throwaway SQLite file, created and dropped on every run, so
+smoking the API never touches dev.db.
+
+    cd backend
+    ./.venv/Scripts/python.exe -m scripts.smoke
+
+Endpoints that later tasks have not built yet are reported as SKIP rather than
+failing the run, so this script stays useful while the plan is still landing.
+"""
+
+import asyncio
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from dotenv import load_dotenv  # noqa: E402
+
+from app.core.config import BACKEND_DIR  # noqa: E402
+
+load_dotenv(BACKEND_DIR / ".env")
+
+_db_file = Path(tempfile.gettempdir()) / "postamat_smoke.db"
+_db_file.unlink(missing_ok=True)
+# Set before anything imports the engine, so the throwaway file is what gets
+# bound rather than the development database named in .env.
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_db_file.as_posix()}"
+
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
+
+from app.core.db import Base, get_session  # noqa: E402
+from app.main import create_app  # noqa: E402
+
+GREEN, RED, YELLOW, GREY, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[90m", "\033[0m"
+
+_passed = 0
+_failed = 0
+_skipped = 0
+
+# Paths the application actually registered, filled in once the app is built. A
+# 404 on a path outside this set means the router belongs to a task that has not
+# landed yet, which is a SKIP; a 404 on a path inside it is a real failure.
+_known_paths: set[str] = set()
+
+
+def _import_models() -> None:
+    """Register every mapped class on Base.metadata before create_all.
+
+    Importing the packages is not enough — the modules/*/__init__.py files are
+    empty, so the model modules themselves have to be imported by name. Modules
+    that a later task has not created yet are simply absent, which is why this
+    tolerates ImportError instead of exploding.
+    """
+    for module in (
+        "app.core.idempotency",
+        "app.modules.audit.models",
+        "app.modules.identity.models",
+        "app.modules.catalog.models",
+    ):
+        try:
+            __import__(module)
+        except ImportError:
+            pass
+
+
+def _short(body: object, limit: int = 160) -> str:
+    text = json.dumps(body, ensure_ascii=False, default=str)
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+async def call(
+    client,
+    method: str,
+    path: str,
+    *,
+    expect: int | None = 200,
+    skip_if_absent: bool = True,
+    **kwargs,
+):
+    """Issue one request, print the outcome, and return the parsed body.
+
+    `expect=None` means any status is acceptable and only the response is shown.
+    A 404 on a path the app never registered counts as SKIP, not as a failure:
+    the plan is still being implemented and the missing routers are known. Pass
+    `skip_if_absent=False` when the missing route is the point of the check, as
+    it is for the probe that inspects the 404 error envelope.
+    """
+    global _passed, _failed, _skipped
+
+    response = await client.request(method, path, **kwargs)
+    try:
+        body = response.json()
+    except ValueError:
+        body = response.text
+
+    if (
+        skip_if_absent
+        and response.status_code == 404
+        and path.split("?")[0] not in _known_paths
+    ):
+        _skipped += 1
+        print(f"{GREY}SKIP {method:6} {path:44} not implemented yet{RESET}")
+        return None
+
+    if expect is None or response.status_code == expect:
+        _passed += 1
+        colour, mark = GREEN, "OK  "
+    else:
+        _failed += 1
+        colour, mark = RED, "FAIL"
+
+    suffix = "" if expect is None or response.status_code == expect else f" (expected {expect})"
+    print(f"{colour}{mark} {method:6} {path:44} {response.status_code}{suffix}{RESET}")
+    print(f"     {_short(body)}")
+    return body
+
+
+async def main() -> int:
+    _import_models()
+
+    engine = create_async_engine(os.environ["DATABASE_URL"])
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    app = create_app()
+    _known_paths.update(app.openapi()["paths"])
+    maker = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def override():
+        async with maker() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://smoke") as client:
+        print(f"\n{YELLOW}-- health and schema --{RESET}")
+        await call(client, "GET", "/api/v1/health")
+        await call(client, "GET", "/openapi.json", expect=200)
+
+        print(f"\n{YELLOW}-- error envelope --{RESET}")
+        await call(
+            client,
+            "GET",
+            "/api/v1/definitely-not-a-route",
+            expect=404,
+            skip_if_absent=False,
+        )
+
+        print(f"\n{YELLOW}-- client login by one-time code --{RESET}")
+        phone = "+99362123456"
+        requested = await call(
+            client, "POST", "/api/v1/auth/otp/request", json={"phone": phone}
+        )
+        await call(
+            client,
+            "POST",
+            "/api/v1/auth/otp/request",
+            json={"phone": "+7999123456"},
+            expect=422,
+        )
+
+        access = None
+        if requested is not None:
+            from app.modules.identity.service import peek_otp
+
+            code = await peek_otp(phone)
+            print(f"{GREY}     one-time code read out of the key-value store: {code}{RESET}")
+            await call(
+                client,
+                "POST",
+                "/api/v1/auth/otp/verify",
+                json={"phone": phone, "code": "000000"},
+                expect=400,
+            )
+            tokens = await call(
+                client,
+                "POST",
+                "/api/v1/auth/otp/verify",
+                json={"phone": phone, "code": code},
+            )
+            if tokens:
+                access = tokens.get("access_token")
+
+        print(f"\n{YELLOW}-- public catalogue --{RESET}")
+        await call(client, "GET", "/api/v1/cities")
+        await call(client, "GET", "/api/v1/cities", headers={"Accept-Language": "ru"})
+        await call(client, "GET", "/api/v1/cell-types")
+        await call(client, "GET", "/api/v1/postamats")
+
+        print(f"\n{YELLOW}-- admin --{RESET}")
+        await call(
+            client,
+            "POST",
+            "/api/v1/admin/auth/login",
+            json={"login": "nobody", "password": "wrong"},
+            expect=401,
+        )
+
+        print(f"\n{YELLOW}-- idempotency --{RESET}")
+        # The same key with the same body must replay the first response; the same
+        # key with a different body must be refused with 409.
+        headers = {"Idempotency-Key": "smoke-key-1"}
+        first = await call(
+            client,
+            "POST",
+            "/api/v1/auth/otp/request",
+            json={"phone": phone},
+            headers=headers,
+            expect=None,
+        )
+        if first is not None:
+            await call(
+                client,
+                "POST",
+                "/api/v1/auth/otp/request",
+                json={"phone": phone},
+                headers=headers,
+                expect=None,
+            )
+            await call(
+                client,
+                "POST",
+                "/api/v1/auth/otp/request",
+                json={"phone": "+99362999999"},
+                headers=headers,
+                expect=409,
+            )
+
+        if access:
+            print(f"\n{YELLOW}-- authenticated as a client --{RESET}")
+            bearer = {"Authorization": f"Bearer {access}"}
+            await call(client, "GET", "/api/v1/me", headers=bearer, expect=None)
+
+    await engine.dispose()
+    _db_file.unlink(missing_ok=True)
+
+    print(f"\n{GREEN}{_passed} ok{RESET}, {RED}{_failed} failed{RESET}, {GREY}{_skipped} not built yet{RESET}\n")
+    return 1 if _failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))
