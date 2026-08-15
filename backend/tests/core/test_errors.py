@@ -34,10 +34,7 @@ async def test_app_error_renders_envelope(error_client):
     assert body["code"] == "CLIENT_BLOCKED"
     assert body["message"] == "Client is blocked."
     assert body["details"] == {"client_id": "42"}
-    # trace_id is set by the trace-id middleware, which arrives in Task 5.
-    # Until then request.state.trace_id is absent and the envelope degrades
-    # to None (see errors.py's getattr default) rather than raising.
-    assert "trace_id" in body
+    assert body["trace_id"]
 
 
 @pytest.mark.xfail(reason="route arrives in task 11", strict=False)
