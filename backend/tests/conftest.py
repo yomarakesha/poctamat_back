@@ -35,6 +35,14 @@ async def schema(test_engine):
     yield
 
 
+@pytest.fixture(autouse=True)
+def reset_kvstore():
+    from app.core.kvstore import get_kvstore
+
+    get_kvstore().clear()
+    yield
+
+
 @pytest.fixture
 async def session(test_engine):
     maker = async_sessionmaker(test_engine, expire_on_commit=False)

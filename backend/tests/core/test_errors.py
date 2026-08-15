@@ -37,7 +37,6 @@ async def test_app_error_renders_envelope(error_client):
     assert body["trace_id"]
 
 
-@pytest.mark.xfail(reason="route arrives in task 11", strict=False)
 async def test_validation_error_renders_envelope(client):
     response = await client.post("/api/v1/auth/otp/request", json={})
     assert response.status_code == 422
