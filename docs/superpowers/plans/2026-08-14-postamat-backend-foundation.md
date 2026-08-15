@@ -4,9 +4,13 @@
 
 **Goal:** Stand up the postamat API service with its cross-cutting machinery (errors, idempotency, pagination, audit) and every reference-data entity the three clients need, so the frontend can build the catalog and admin screens against a real server.
 
-**Architecture:** Modular monolith. FastAPI application in `backend/app`, split into `core` (infrastructure) and `modules` (domain), with routers grouped by audience under `api/`. Modules never import each other's models — they call each other's service functions. Everything runs in Docker Compose because the host Python is 3.14 and several async drivers have no wheels for it yet.
+**Architecture:** Modular monolith. FastAPI application in `backend/app`, split into `core` (infrastructure) and `modules` (domain), with routers grouped by audience under `api/`. Modules never import each other's models — they call each other's service functions. Runs directly on the host in a virtualenv; no containers.
 
-**Tech Stack:** Python 3.12 (container), FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2, Redis, PyJWT, argon2-cffi, pytest + pytest-asyncio + httpx.
+**Tech Stack:** Python 3.14 (host), FastAPI, SQLAlchemy 2.0 async, asyncpg for Postgres and aiosqlite for tests, Alembic, Pydantic v2, PyJWT, argon2-cffi, pytest + pytest-asyncio + httpx.
+
+**Runtime environment (verified 2026-08-14):** the host runs Python 3.14.4. Every dependency below installs from wheels on it, but only at current versions — `asyncpg` needs 0.31+ (0.30 has no 3.14 wheel) and `pydantic` needs 2.13+. `psycopg` has no 3.14 wheel at all, so `asyncpg` is the only Postgres driver option. Use `uvicorn` plain, never `uvicorn[standard]`: it pulls `uvloop`, which does not build on Windows.
+
+**Infrastructure not yet available:** Postgres 18 is installed as the `postgresql-x64-18` service but its credentials are not configured yet, and Redis is not installed at all. Both are the human partner's to sort out later. Until then the test suite runs on SQLite, and everything Redis would have held lives behind an interface with an in-process implementation. See Rulings R2 and R6.
 
 **Spec:** `docs/superpowers/specs/2026-08-14-postamat-backend-design.md`, as amended by the contract reply of 2026-08-14 (five change requests, `offline_ttl` = 24 h).
 
@@ -21,7 +25,7 @@ This plan covers the foundation and reference data only. Two further plans follo
 
 ## Global Constraints
 
-- Python **3.12** inside the container. Never assume the host interpreter.
+- Python **3.14** on the host, in a virtualenv at `backend/.venv`. No Docker anywhere.
 - All API paths are prefixed **`/api/v1`**.
 - Every error response uses the envelope `{"error": {"code", "message", "details", "trace_id"}}`. `code` is a stable machine constant, `message` is English for developers and is never shown to a user.
 - `401` means an expired or missing token. `403` means insufficient rights. Never swap them.
@@ -41,8 +45,7 @@ This plan covers the foundation and reference data only. Two further plans follo
 
 ```
 backend/
-  docker-compose.yml          Postgres, Redis, api
-  Dockerfile
+  .venv/                      virtualenv, git-ignored
   requirements.txt
   pytest.ini
   alembic.ini
@@ -60,6 +63,7 @@ backend/
       pagination.py           PageParams, PageMeta, CursorParams
       idempotency.py          model + dependency
       security.py             hashing, JWT, auth dependencies
+      kvstore.py              short-lived key-value store (Redis stand-in)
       ratelimit.py            IP limiter
     modules/
       audit/                  models.py, service.py
@@ -81,7 +85,8 @@ backend/
 ### Task 1: Repository skeleton and a running container
 
 **Files:**
-- Create: `.gitignore`, `backend/Dockerfile`, `backend/docker-compose.yml`, `backend/requirements.txt`, `backend/pytest.ini`, `backend/app/__init__.py`, `backend/app/main.py`, `backend/tests/__init__.py`, `backend/tests/conftest.py`, `backend/tests/core/test_health.py`
+- Create: `.gitignore`, `backend/requirements.txt`, `backend/pytest.ini`, `backend/.env.example`, `backend/app/__init__.py`, `backend/app/main.py`, `backend/tests/__init__.py`, `backend/tests/core/__init__.py`, `backend/tests/core/test_health.py`
+- Delete: `backend/Dockerfile`, `backend/docker-compose.yml` (left behind by an aborted first attempt)
 
 **Interfaces:**
 - Produces: `app.main.create_app() -> FastAPI`, and a `GET /api/v1/health` route returning `{"status": "ok"}`.
@@ -107,77 +112,74 @@ __pycache__/
 *.egg-info/
 ```
 
-- [ ] **Step 3: Write `backend/requirements.txt`**
+- [ ] **Step 3: Remove the containers left by the aborted first attempt**
 
-```
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-sqlalchemy[asyncio]==2.0.36
-asyncpg==0.30.0
-alembic==1.14.0
-pydantic==2.10.4
-pydantic-settings==2.7.0
-redis==5.2.1
-pyjwt==2.10.1
-argon2-cffi==23.1.0
-python-multipart==0.0.20
-pytest==8.3.4
-pytest-asyncio==0.25.0
-httpx==0.28.1
+```bash
+cd backend
+rm -f Dockerfile docker-compose.yml
 ```
 
-- [ ] **Step 4: Write `backend/Dockerfile`**
+- [ ] **Step 4: Write `backend/requirements.txt`**
 
-```dockerfile
-FROM python:3.12-slim
+Version floors, not exact pins. The floors are the versions that actually carry Python 3.14
+wheels — `asyncpg` below 0.31 and `pydantic` below 2.13 have none, and pip would fall back to
+building from source against a compiler this machine does not have.
 
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
-
-WORKDIR /srv
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+```
+fastapi>=0.121
+uvicorn>=0.38
+sqlalchemy[asyncio]>=2.0.52
+asyncpg>=0.31.0
+aiosqlite>=0.20.0
+alembic>=1.19.1
+pydantic>=2.13.4
+pydantic-settings>=2.7.0
+pyjwt>=2.13.0
+argon2-cffi>=23.1.0
+python-multipart>=0.0.20
+pytest>=8.3.4
+pytest-asyncio>=0.25.0
+httpx>=0.28.1
 ```
 
-- [ ] **Step 5: Write `backend/docker-compose.yml`**
+Do not add `uvicorn[standard]` — it pulls `uvloop`, which does not build on Windows.
 
-```yaml
-services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postamat
-      POSTGRES_PASSWORD: postamat
-      POSTGRES_DB: postamat
-    ports: ["5432:5432"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postamat"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
+- [ ] **Step 5: Create the virtualenv and install**
 
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
-
-  api:
-    build: .
-    environment:
-      DATABASE_URL: postgresql+asyncpg://postamat:postamat@db:5432/postamat
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: dev-secret-change-me
-      PIN_PEPPER: dev-pepper-change-me
-    volumes: [".:/srv"]
-    ports: ["8000:8000"]
-    depends_on:
-      db: {condition: service_healthy}
+```bash
+cd backend
+py -m venv .venv
+./.venv/Scripts/python.exe -m pip install --upgrade pip
+./.venv/Scripts/python.exe -m pip install -r requirements.txt
 ```
 
-- [ ] **Step 6: Write `backend/pytest.ini`**
+Every later command in every task runs through `./.venv/Scripts/python.exe`, never through a
+bare `python` or `pytest`.
+
+- [ ] **Step 6: Write `backend/.env.example` and `backend/.env`**
+
+Postgres credentials are not configured on this machine yet. Until they are, the development
+database is a SQLite file — Alembic needs a reachable database to autogenerate against, and this
+keeps every task runnable today.
+
+```
+DATABASE_URL=sqlite+aiosqlite:///./dev.db
+TEST_DATABASE_URL=sqlite+aiosqlite:///:memory:
+JWT_SECRET=dev-secret-change-me
+PIN_PEPPER=dev-pepper-change-me
+```
+
+`.env.example` carries the same keys plus the Postgres form as a comment, so the switch is one
+line when the service is ready:
+
+```
+# Production / once postgresql-x64-18 is configured:
+# DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/postamat
+```
+
+`.env` and `dev.db` are git-ignored; `.env.example` is committed.
+
+- [ ] **Step 7: Write `backend/pytest.ini`**
 
 ```ini
 [pytest]
@@ -185,7 +187,7 @@ asyncio_mode = auto
 testpaths = tests
 ```
 
-- [ ] **Step 7: Write the failing test in `backend/tests/core/test_health.py`**
+- [ ] **Step 8: Write the failing test in `backend/tests/core/test_health.py`**
 
 ```python
 import pytest
@@ -208,17 +210,16 @@ async def test_health_returns_ok(client):
     assert response.json() == {"status": "ok"}
 ```
 
-- [ ] **Step 8: Run the test and confirm it fails**
+- [ ] **Step 9: Run the test and confirm it fails**
 
 ```bash
 cd backend
-docker compose build api
-docker compose run --rm api pytest tests/core/test_health.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_health.py -v
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'app.main'`.
 
-- [ ] **Step 9: Write `backend/app/main.py`**
+- [ ] **Step 10: Write `backend/app/main.py`**
 
 ```python
 from fastapi import APIRouter, FastAPI
@@ -244,20 +245,22 @@ app = create_app()
 
 Also create empty `backend/app/__init__.py`, `backend/tests/__init__.py` and `backend/tests/core/__init__.py`.
 
-- [ ] **Step 10: Run the test and confirm it passes**
+- [ ] **Step 11: Run the test and confirm it passes**
 
 ```bash
-docker compose run --rm api pytest tests/core/test_health.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_health.py -v
 ```
 
 Expected: PASS.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 12: Add `backend/.venv/` and `backend/.env` to the root `.gitignore`, then commit**
 
 ```bash
 git add -A
-git commit -m "feat: backend skeleton with health endpoint and docker compose"
+git commit -m "feat: backend skeleton with health endpoint"
 ```
+
+Verify with `git status --short` that no `.venv` content was staged.
 
 ---
 
@@ -268,7 +271,7 @@ git commit -m "feat: backend skeleton with health endpoint and docker compose"
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `app.core.config.Settings` and `get_settings() -> Settings` with fields `database_url: str`, `redis_url: str`, `jwt_secret: str`, `pin_pepper: str`, `access_token_ttl_minutes: int = 30`, `refresh_token_ttl_days: int = 30`, `otp_length: int = 6`, `otp_ttl_seconds: int = 300`, `pin_length: int = 5`, `hold_minutes: int = 10`, `offline_ttl_hours: int = 24`, `rental_durations: tuple[int, ...] = (12, 24, 48)`, `default_language: str = "tk"`.
+- Produces: `app.core.config.Settings` and `get_settings() -> Settings` with fields `database_url: str`, `jwt_secret: str`, `pin_pepper: str`, `access_token_ttl_minutes: int = 30`, `refresh_token_ttl_days: int = 30`, `otp_length: int = 6`, `otp_ttl_seconds: int = 300`, `pin_length: int = 5`, `hold_minutes: int = 10`, `offline_ttl_hours: int = 24`, `rental_durations: tuple[int, ...] = (12, 24, 48)`, `default_language: str = "tk"`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -293,7 +296,7 @@ def test_get_settings_is_cached():
 - [ ] **Step 2: Run it and confirm it fails**
 
 ```bash
-docker compose run --rm api pytest tests/core/test_config.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_config.py -v
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'app.core.config'`.
@@ -310,7 +313,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str
-    redis_url: str
     jwt_secret: str
     pin_pepper: str
 
@@ -338,7 +340,7 @@ def get_settings() -> Settings:
 - [ ] **Step 4: Run the test and confirm it passes**
 
 ```bash
-docker compose run --rm api pytest tests/core/test_config.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_config.py -v
 ```
 
 - [ ] **Step 5: Commit**
@@ -353,7 +355,7 @@ git add -A && git commit -m "feat: application settings with pinned product cons
 
 **Files:**
 - Create: `backend/app/core/db.py`, `backend/alembic.ini`, `backend/alembic/env.py`, `backend/alembic/script.py.mako`, `backend/tests/conftest.py`
-- Modify: `backend/docker-compose.yml` (add a `db_test` service)
+- Modify: `backend/.env` (already carries `TEST_DATABASE_URL` from Task 1 — no change needed)
 
 **Interfaces:**
 - Produces: `app.core.db.Base` (declarative base with a `uuid7`-style primary key mixin), `app.core.db.get_session()` FastAPI dependency, `app.core.db.session_scope()` async context manager for workers and tests.
@@ -409,30 +411,19 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
         yield session
 ```
 
-- [ ] **Step 2: Add the test database service to `backend/docker-compose.yml`**
+- [ ] **Step 2: Nothing to provision**
 
-```yaml
-  db_test:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postamat
-      POSTGRES_PASSWORD: postamat
-      POSTGRES_DB: postamat_test
-    tmpfs: ["/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postamat"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
-```
-
-Add `db_test: {condition: service_healthy}` to the `api` service's `depends_on`, and
-`TEST_DATABASE_URL: postgresql+asyncpg://postamat:postamat@db_test:5432/postamat_test` to its environment.
+`TEST_DATABASE_URL` is already `sqlite+aiosqlite:///:memory:` from Task 1. Postgres is not
+reachable on this machine yet, so the suite runs on SQLite until the human partner configures the
+`postgresql-x64-18` service. Keep every model and query in this plan portable: `JSON` rather than
+`JSONB`, no server-side defaults beyond `func.now()`, and no Postgres-only SQL. Plan 2, which needs
+`FOR UPDATE SKIP LOCKED`, requires the real database and says so.
 
 - [ ] **Step 3: Initialise Alembic**
 
 ```bash
-docker compose run --rm api alembic init -t async alembic
+cd backend
+./.venv/Scripts/python.exe -m alembic init -t async alembic
 ```
 
 - [ ] **Step 4: Point `backend/alembic/env.py` at the application metadata**
@@ -499,10 +490,15 @@ async def client(session):
 
 Delete the now-duplicated `client` fixture from `backend/tests/core/test_health.py`.
 
+Because `TEST_DATABASE_URL` is an in-memory SQLite database, give `create_async_engine` a
+`StaticPool` and `connect_args={"check_same_thread": False}` so every session in a test shares one
+connection — otherwise each session gets its own empty database and the schema fixture's tables
+vanish.
+
 - [ ] **Step 6: Run the whole suite and confirm it still passes**
 
 ```bash
-docker compose run --rm api pytest -v
+./.venv/Scripts/python.exe -m pytest -v
 ```
 
 - [ ] **Step 7: Commit**
@@ -568,7 +564,7 @@ The second test is expected to stay red until Task 11 adds the route; mark it
 - [ ] **Step 2: Run it and confirm it fails**
 
 ```bash
-docker compose run --rm api pytest tests/core/test_errors.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_errors.py -v
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'app.core.errors'`.
@@ -678,7 +674,7 @@ def create_app() -> FastAPI:
 - [ ] **Step 5: Run the test and confirm the first case passes**
 
 ```bash
-docker compose run --rm api pytest tests/core/test_errors.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_errors.py -v
 ```
 
 - [ ] **Step 6: Commit**
@@ -714,7 +710,7 @@ async def test_trace_id_is_echoed_when_supplied(client):
 - [ ] **Step 2: Run it and confirm it fails**
 
 ```bash
-docker compose run --rm api pytest tests/core/test_context.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_context.py -v
 ```
 
 Expected: FAIL with `KeyError: 'x-trace-id'`.
@@ -812,7 +808,7 @@ def test_utc_isoformat_uses_z_suffix():
 - [ ] **Step 2: Run it and confirm it fails**
 
 ```bash
-docker compose run --rm api pytest tests/core/test_types.py -v
+./.venv/Scripts/python.exe -m pytest tests/core/test_types.py -v
 ```
 
 - [ ] **Step 3: Write `backend/app/core/types.py`**
@@ -1225,7 +1221,7 @@ async def test_record_persists_an_entry(session):
 - [ ] **Step 4: Run the test and confirm it passes**
 
 ```bash
-docker compose run --rm api pytest tests/audit -v
+./.venv/Scripts/python.exe -m pytest tests/audit -v
 ```
 
 - [ ] **Step 5: Commit**
@@ -1322,8 +1318,8 @@ async def test_client_phone_is_unique(session):
 - [ ] **Step 4: Generate the first migration**
 
 ```bash
-docker compose run --rm api alembic revision --autogenerate -m "identity, audit, idempotency"
-docker compose run --rm api alembic upgrade head
+./.venv/Scripts/python.exe -m alembic revision --autogenerate -m "identity, audit, idempotency"
+./.venv/Scripts/python.exe -m alembic upgrade head
 ```
 
 - [ ] **Step 5: Commit**
@@ -1344,7 +1340,7 @@ git add -A && git commit -m "feat: identity models and first migration"
 - Produces: `hash_secret(value) -> str`, `verify_secret(value, hashed) -> bool`, `create_access_token(subject_type, subject_id, extra) -> str`, `decode_token(token) -> dict`, `require_client` dependency returning a `Client`.
 - Endpoints: `POST /api/v1/auth/otp/request`, `POST /api/v1/auth/otp/verify`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`.
 
-The OTP is 6 digits, lives in Redis under `otp:{phone}` with a TTL from settings, and carries an attempt counter. During development the code is returned in the response only when `settings.expose_otp` is true; wire that flag to `False` by default and set it in compose.
+The OTP is 6 digits, lives in the key-value store under `otp:{phone}` with a TTL from settings, and carries an attempt counter. It is never returned in an API response — tests read it through `peek_otp`, which exists for exactly that purpose and is not exposed by any route.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1482,24 +1478,15 @@ import secrets
 import uuid
 from datetime import timedelta
 
-import redis.asyncio as redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import utcnow
 from app.core.errors import AppError, ErrorCode
+from app.core.kvstore import get_kvstore
 from app.core.security import create_access_token, hash_token
 from app.modules.identity.models import Client, RefreshToken
-
-_redis: redis.Redis | None = None
-
-
-def get_redis() -> redis.Redis:
-    global _redis
-    if _redis is None:
-        _redis = redis.from_url(get_settings().redis_url, decode_responses=True)
-    return _redis
 
 
 def _otp_key(phone: str) -> str:
@@ -1509,36 +1496,37 @@ def _otp_key(phone: str) -> str:
 async def issue_otp(phone: str) -> int:
     settings = get_settings()
     code = "".join(secrets.choice("0123456789") for _ in range(settings.otp_length))
-    client = get_redis()
-    await client.hset(_otp_key(phone), mapping={"code": code, "attempts": "0"})
-    await client.expire(_otp_key(phone), settings.otp_ttl_seconds)
+    await get_kvstore().put(
+        _otp_key(phone), {"code": code, "attempts": "0"}, settings.otp_ttl_seconds
+    )
     return settings.otp_ttl_seconds
 
 
 async def peek_otp(phone: str) -> str | None:
-    return await get_redis().hget(_otp_key(phone), "code")
+    stored = await get_kvstore().get(_otp_key(phone))
+    return stored["code"] if stored else None
 
 
 async def verify_otp(phone: str, code: str) -> None:
     settings = get_settings()
-    client = get_redis()
-    stored = await client.hgetall(_otp_key(phone))
+    store = get_kvstore()
+    stored = await store.get(_otp_key(phone))
     if not stored:
         raise AppError(ErrorCode.OTP_EXPIRED, "No active code for this number.", 400)
 
     attempts = int(stored["attempts"]) + 1
     if attempts >= settings.otp_max_attempts:
-        await client.delete(_otp_key(phone))
+        await store.delete(_otp_key(phone))
         raise AppError(ErrorCode.OTP_TOO_MANY_ATTEMPTS, "Too many attempts.", 429)
 
     if not secrets.compare_digest(stored["code"], code):
-        await client.hset(_otp_key(phone), "attempts", str(attempts))
+        await store.set_field(_otp_key(phone), "attempts", str(attempts))
         raise AppError(
             ErrorCode.OTP_INVALID, "Wrong code.", 400,
             details={"attempts_left": settings.otp_max_attempts - attempts},
         )
 
-    await client.delete(_otp_key(phone))
+    await store.delete(_otp_key(phone))
 
 
 async def get_or_create_client(session: AsyncSession, phone: str) -> tuple[Client, bool]:
@@ -1618,7 +1606,7 @@ app.include_router(mobile_auth.router, prefix=API_PREFIX)
 - [ ] **Step 8: Run the tests and confirm they pass**
 
 ```bash
-docker compose run --rm api pytest tests/identity tests/core -v
+./.venv/Scripts/python.exe -m pytest tests/identity tests/core -v
 ```
 
 - [ ] **Step 9: Commit**
@@ -1838,7 +1826,7 @@ async def list_roles(
 - [ ] **Step 5: Register the router and run the tests**
 
 ```bash
-docker compose run --rm api pytest tests/identity -v
+./.venv/Scripts/python.exe -m pytest tests/identity -v
 ```
 
 - [ ] **Step 6: Commit**
@@ -1995,8 +1983,8 @@ async def test_blocked_cell_types_are_hidden(client, session):
 - [ ] **Step 5: Run the tests, generate the migration, commit**
 
 ```bash
-docker compose run --rm api pytest tests/catalog -v
-docker compose run --rm api alembic revision --autogenerate -m "cities and cell types"
+./.venv/Scripts/python.exe -m pytest tests/catalog -v
+./.venv/Scripts/python.exe -m alembic revision --autogenerate -m "cities and cell types"
 git add -A && git commit -m "feat: public city and cell type reference data"
 ```
 
@@ -2276,8 +2264,8 @@ Add `admin_token` and `city` fixtures to `backend/tests/conftest.py`, seeding a 
 - [ ] **Step 8: Run the tests, generate the migration, commit**
 
 ```bash
-docker compose run --rm api pytest tests/catalog -v
-docker compose run --rm api alembic revision --autogenerate -m "postamats, schedules, devices"
+./.venv/Scripts/python.exe -m pytest tests/catalog -v
+./.venv/Scripts/python.exe -m alembic revision --autogenerate -m "postamats, schedules, devices"
 git add -A && git commit -m "feat: postamats with opening hours and operator status"
 ```
 
@@ -2428,8 +2416,8 @@ async def list_cells(
 - [ ] **Step 5: Run the tests, generate the migration, commit**
 
 ```bash
-docker compose run --rm api pytest tests/catalog/test_cells.py -v
-docker compose run --rm api alembic revision --autogenerate -m "cells"
+./.venv/Scripts/python.exe -m pytest tests/catalog/test_cells.py -v
+./.venv/Scripts/python.exe -m alembic revision --autogenerate -m "cells"
 git add -A && git commit -m "feat: cells with independent door and board addressing"
 ```
 
@@ -2576,8 +2564,8 @@ async def replace_tariffs(
 - [ ] **Step 5: Run the tests, generate the migration, commit**
 
 ```bash
-docker compose run --rm api pytest tests/catalog/test_tariffs.py -v
-docker compose run --rm api alembic revision --autogenerate -m "tariffs"
+./.venv/Scripts/python.exe -m pytest tests/catalog/test_tariffs.py -v
+./.venv/Scripts/python.exe -m alembic revision --autogenerate -m "tariffs"
 git add -A && git commit -m "feat: tariff matrix replaced atomically with completeness check"
 ```
 
@@ -2590,7 +2578,7 @@ git add -A && git commit -m "feat: tariff matrix replaced atomically with comple
 - Modify: `backend/app/api/public/catalog.py`, `backend/app/api/mobile/auth.py`
 
 **Interfaces:**
-- Produces: `rate_limit(bucket, limit, window_seconds)` dependency factory using Redis, raising `RATE_LIMITED` with `retry_after_seconds` in `details`.
+- Produces: `rate_limit(bucket, limit, window_seconds)` dependency factory over the core key-value store, raising `RATE_LIMITED` with `retry_after_seconds` in `details`.
 
 The public reads are the only unauthenticated surface, and OTP requests cost money per message.
 
@@ -2616,21 +2604,16 @@ async def test_repeated_otp_requests_are_limited(client):
 from fastapi import Request
 
 from app.core.errors import AppError, ErrorCode
-from app.modules.identity.service import get_redis
+from app.core.kvstore import get_kvstore
 
 
 def rate_limit(bucket: str, limit: int, window_seconds: int):
     async def dependency(request: Request) -> None:
         client_ip = request.client.host if request.client else "unknown"
         key = f"rl:{bucket}:{client_ip}"
-        redis_client = get_redis()
 
-        current = await redis_client.incr(key)
-        if current == 1:
-            await redis_client.expire(key, window_seconds)
-
+        current, ttl = await get_kvstore().increment(key, window_seconds)
         if current > limit:
-            ttl = await redis_client.ttl(key)
             raise AppError(
                 ErrorCode.RATE_LIMITED, "Too many requests.", 429,
                 details={"retry_after_seconds": max(ttl, 1)},
@@ -2653,7 +2636,7 @@ Use `rate_limit("public", limit=120, window_seconds=60)` on `GET /cities` and `G
 - [ ] **Step 5: Run the whole suite**
 
 ```bash
-docker compose run --rm api pytest -v
+./.venv/Scripts/python.exe -m pytest -v
 ```
 
 - [ ] **Step 6: Commit**
@@ -2666,9 +2649,10 @@ git add -A && git commit -m "feat: IP rate limiting on the public and OTP surfac
 
 ## Definition of done for this plan
 
-- `docker compose up` brings up a service answering on `http://localhost:8000/api/v1/health`.
-- `docker compose run --rm api pytest` is green.
-- `docker compose run --rm api alembic upgrade head` builds the schema from scratch.
+- `./.venv/Scripts/python.exe -m uvicorn app.main:app` answers on `http://localhost:8000/api/v1/health`.
+- `./.venv/Scripts/python.exe -m pytest` is green against SQLite.
+- The Alembic revisions exist and are ordered; `alembic upgrade head` is verified once Postgres
+  credentials are configured — it is **not** claimed as passing before then.
 - A client can obtain tokens by phone; an admin can log in and is refused by permission.
 - Cities, cell types, postamats with opening hours, cells and the tariff matrix are all
   readable and writable through the documented paths.

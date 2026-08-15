@@ -1,8 +1,10 @@
 __pycache__/
 *.py[cod]
 .venv/
+backend/.venv/
 .env
+backend/.env
+backend/dev.db
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
-.superpowers/
