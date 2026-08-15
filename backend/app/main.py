@@ -1,5 +1,6 @@
 from fastapi import APIRouter, FastAPI
 
+from app.api.admin import auth as admin_auth
 from app.api.mobile import auth as mobile_auth
 from app.core.context import RequestContextMiddleware
 from app.core.errors import install_error_handlers
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(mobile_auth.router, prefix=API_PREFIX)
+    app.include_router(admin_auth.router, prefix=API_PREFIX)
     return app
 
 

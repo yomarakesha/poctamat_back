@@ -10,7 +10,7 @@ from app.core.db import utcnow
 from app.core.errors import AppError, ErrorCode
 from app.core.kvstore import get_kvstore
 from app.core.security import create_access_token, hash_token
-from app.modules.identity.models import Client, RefreshToken
+from app.modules.identity.models import AdminUser, Client, RefreshToken
 
 
 def _otp_key(phone: str) -> str:
@@ -91,14 +91,18 @@ async def issue_token_pair(
     return access, refresh
 
 
-async def _load_usable_refresh_token(session: AsyncSession, token: str) -> RefreshToken:
+async def _load_usable_refresh_token(
+    session: AsyncSession, token: str, subject_type: str
+) -> RefreshToken:
     stored = await session.scalar(
         select(RefreshToken).where(RefreshToken.token_hash == hash_token(token))
     )
-    # Unknown, already rotated and expired all answer the same way: distinguishing
-    # them would tell a caller something about tokens it does not hold.
+    # Unknown, already rotated, expired and belonging to the other kind of subject
+    # all answer the same way: distinguishing them would tell a caller something
+    # about tokens it does not hold.
     if (
         stored is None
+        or stored.subject_type != subject_type
         or stored.revoked_at is not None
         or _as_utc(stored.expires_at) <= utcnow()
     ):
@@ -106,19 +110,45 @@ async def _load_usable_refresh_token(session: AsyncSession, token: str) -> Refre
     return stored
 
 
-async def rotate_refresh_token(session: AsyncSession, token: str) -> tuple[str, str]:
+async def _assert_subject_usable(
+    session: AsyncSession, subject_type: str, subject_id: uuid.UUID
+) -> None:
+    """Refuse to extend a session whose owner has since lost access.
+
+    The access token is minutes old but the refresh token lives for days, so
+    without this an administrator blocking a client, or deactivating a colleague,
+    would not take effect until that refresh token finally expired.
+    """
+    if subject_type == "client":
+        client = await session.get(Client, subject_id)
+        if client is None or client.is_blocked:
+            raise AppError(ErrorCode.CLIENT_BLOCKED, "Client is blocked.", 403)
+    elif subject_type == "admin":
+        admin = await session.get(AdminUser, subject_id)
+        if admin is None or not admin.is_active:
+            raise AppError(ErrorCode.ADMIN_INACTIVE, "Account is inactive.", 403)
+
+
+async def rotate_refresh_token(
+    session: AsyncSession, token: str, subject_type: str
+) -> tuple[str, str]:
     """Revoke the presented token and issue a fresh pair in its place.
 
     Rotation is what makes the stored hash worth keeping: a stolen token is
     single-use, and its replay lands on a revoked row instead of a live session.
     """
-    stored = await _load_usable_refresh_token(session, token)
+    stored = await _load_usable_refresh_token(session, token, subject_type)
+    await _assert_subject_usable(session, stored.subject_type, stored.subject_id)
     stored.revoked_at = utcnow()
     await session.flush()
     return await issue_token_pair(session, stored.subject_type, stored.subject_id)
 
 
-async def revoke_refresh_token(session: AsyncSession, token: str) -> None:
-    stored = await _load_usable_refresh_token(session, token)
+async def revoke_refresh_token(
+    session: AsyncSession, token: str, subject_type: str
+) -> None:
+    # No subject check here on purpose: logging out is giving up access, and a
+    # blocked client must still be able to tear its own session down.
+    stored = await _load_usable_refresh_token(session, token, subject_type)
     stored.revoked_at = utcnow()
     await session.flush()

@@ -38,7 +38,9 @@ async def verify_otp(
 async def refresh(
     payload: RefreshRequest, session: AsyncSession = Depends(get_session)
 ) -> TokenPair:
-    access, rotated = await service.rotate_refresh_token(session, payload.refresh_token)
+    access, rotated = await service.rotate_refresh_token(
+        session, payload.refresh_token, "client"
+    )
     await session.commit()
     return TokenPair(access_token=access, refresh_token=rotated)
 
@@ -47,6 +49,6 @@ async def refresh(
 async def logout(
     payload: RefreshRequest, session: AsyncSession = Depends(get_session)
 ) -> Response:
-    await service.revoke_refresh_token(session, payload.refresh_token)
+    await service.revoke_refresh_token(session, payload.refresh_token, "client")
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
