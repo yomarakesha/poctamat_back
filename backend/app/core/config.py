@@ -1,10 +1,20 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# app/core/config.py -> app/core -> app -> backend
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Anchored to the backend directory rather than left relative, so the
+    # settings load the same whether the process starts in backend/, in the
+    # repository root, or anywhere else. Real environment variables still win
+    # over the file, which is what deployment and CI will rely on.
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_DIR / ".env", extra="ignore"
+    )
 
     database_url: str
     jwt_secret: str

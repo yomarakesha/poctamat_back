@@ -10,10 +10,14 @@ from dotenv import load_dotenv
 
 from alembic import context
 
+from app.core.config import BACKEND_DIR
 from app.core.db import Base
 from app.modules import audit, catalog, identity  # noqa: F401  register models
 
-load_dotenv()
+# Anchored to the backend directory rather than the current one, so alembic
+# behaves the same wherever it is invoked from. A real environment variable
+# still wins over the file.
+load_dotenv(BACKEND_DIR / ".env")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

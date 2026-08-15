@@ -6,10 +6,14 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.core.config import BACKEND_DIR
 from app.core.db import Base, get_session
 from app.main import create_app
 
-load_dotenv()
+# Anchored to the backend directory so the suite runs from anywhere, not only
+# from backend/. A real environment variable still wins, which is how CI will
+# supply this once there is no .env on disk.
+load_dotenv(BACKEND_DIR / ".env")
 
 TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
 
