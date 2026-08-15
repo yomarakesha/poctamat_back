@@ -1,5 +1,7 @@
 from fastapi import APIRouter, FastAPI
 
+from app.core.errors import install_error_handlers
+
 API_PREFIX = "/api/v1"
 
 health_router = APIRouter()
@@ -12,6 +14,7 @@ async def health() -> dict[str, str]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Postamat API", version="1.0.0")
+    install_error_handlers(app)
     app.include_router(health_router, prefix=API_PREFIX)
     return app
 
