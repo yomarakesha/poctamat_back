@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import inspect, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -108,6 +109,14 @@ async def create_booking(
     than racing. The partial unique index is the backstop if this is ever wrong.
     """
     settings = get_settings()
+    # Ending the caller's transaction below is safe for reads and destructive for
+    # writes, so unflushed work is a programming error rather than something to
+    # commit on the caller's behalf.
+    if session.new or session.dirty or session.deleted:
+        raise RuntimeError(
+            "create_booking needs a session with no pending changes; "
+            "commit or roll back before allocating a cell."
+        )
     # The caller's own lookups have already opened a deferred transaction, and
     # BEGIN IMMEDIATE cannot upgrade one that is already running. Those lookups
     # were reads, so ending their transaction here costs nothing.
@@ -116,27 +125,37 @@ async def create_booking(
 
     booking: Booking | None = None
     plaintext: dict[CodePurpose, str] = {}
-    async with write_transaction(session):
-        taken = await _held_cell_ids(session, postamat_id)
-        free = await free_cell_ids(session, postamat_id, cell_type_id, taken)
-        # Sold out is an answer, not a failed write: the transaction is closed
-        # normally and the refusal raised outside it. Rolling back instead would
-        # expire every object in the session for a request that wrote nothing.
-        if free:
-            booking = Booking(
-                client_id=client_id, postamat_id=postamat_id, cell_id=free[0],
-                cell_type_id=cell_type_id, duration_hours=duration_hours,
-                amount_minor=amount_minor, currency=currency,
-                status=BookingStatus.PENDING_PAYMENT, depositor=depositor,
-                courier_phone=courier_phone, recipient_phone=recipient_phone,
-                recipient_name=recipient_name,
-                hold_expires_at=utcnow() + timedelta(minutes=settings.hold_minutes),
-            )
-            plaintext = issue_codes(booking)
-            session.add(booking)
-            await record_event(session, booking, BookingStatus.PENDING_PAYMENT,
-                               "Забронировано")
-            await session.flush()
+    try:
+        async with write_transaction(session):
+            taken = await _held_cell_ids(session, postamat_id)
+            free = await free_cell_ids(session, postamat_id, cell_type_id, taken)
+            # Sold out is an answer, not a failed write: the transaction is
+            # closed normally and the refusal raised outside it. Rolling back
+            # instead would expire every object in the session for a request
+            # that wrote nothing.
+            if free:
+                booking = Booking(
+                    client_id=client_id, postamat_id=postamat_id, cell_id=free[0],
+                    cell_type_id=cell_type_id, duration_hours=duration_hours,
+                    amount_minor=amount_minor, currency=currency,
+                    status=BookingStatus.PENDING_PAYMENT, depositor=depositor,
+                    courier_phone=courier_phone, recipient_phone=recipient_phone,
+                    recipient_name=recipient_name,
+                    hold_expires_at=(
+                        utcnow() + timedelta(minutes=settings.hold_minutes)
+                    ),
+                )
+                plaintext = issue_codes(booking)
+                session.add(booking)
+                await record_event(session, booking, BookingStatus.PENDING_PAYMENT,
+                                   "Забронировано")
+                await session.flush()
+    except IntegrityError:
+        # uq_active_booking_per_cell refused the row, so the cell was held by a
+        # booking this transaction could not see. That is the database catching
+        # what application code missed, and the customer is owed the same answer
+        # as an ordinary sold-out: their size is gone, not "something broke".
+        booking = None
 
     if booking is None:
         raise AppError(
