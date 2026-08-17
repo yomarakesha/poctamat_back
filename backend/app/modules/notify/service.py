@@ -118,7 +118,7 @@ async def notify(
     )
     session.add(row)
 
-    if channel is NotificationChannel.SMS:
+    if channel == NotificationChannel.SMS:
         if not phone:
             row.error = "no phone number"
         else:

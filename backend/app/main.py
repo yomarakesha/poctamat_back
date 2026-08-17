@@ -8,8 +8,10 @@ from app.api.admin import tariffs as admin_tariffs
 from app.api.mobile import auth as mobile_auth
 from app.api.mobile import bookings as mobile_bookings
 from app.api.mobile import notifications as mobile_notifications
+from app.api.mobile import payments as mobile_payments
 from app.api.public import catalog as public_catalog
 from app.api.public import postamats as public_postamats
+from app.api.webhooks import payments as payment_webhooks
 from app.core.context import RequestContextMiddleware
 from app.core.errors import install_error_handlers
 from app.core.idempotency import IdempotencyMiddleware
@@ -38,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(mobile_auth.router, prefix=API_PREFIX)
     app.include_router(mobile_bookings.router, prefix=API_PREFIX)
     app.include_router(mobile_notifications.router, prefix=API_PREFIX)
+    app.include_router(mobile_payments.router, prefix=API_PREFIX)
     app.include_router(admin_auth.router, prefix=API_PREFIX)
     app.include_router(admin_postamats.router, prefix=API_PREFIX)
     app.include_router(admin_cells.router, prefix=API_PREFIX)
@@ -45,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_bookings.router, prefix=API_PREFIX)
     app.include_router(public_catalog.router, prefix=API_PREFIX)
     app.include_router(public_postamats.router, prefix=API_PREFIX)
+    app.include_router(payment_webhooks.router, prefix=API_PREFIX)
     return app
 
 
