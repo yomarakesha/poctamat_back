@@ -20,11 +20,36 @@ TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
 
 @pytest.fixture(scope="session")
 def test_engine():
-    return create_async_engine(
+    from app.core.db import install_sqlite_pragmas
+
+    engine = create_async_engine(
         TEST_DATABASE_URL,
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
     )
+    # The suite must run under the same pragmas production does, or a locking
+    # bug only shows up outside the tests.
+    install_sqlite_pragmas(engine)
+    return engine
+
+
+@pytest.fixture
+async def file_engine(tmp_path):
+    """A throwaway file database with its own connection pool.
+
+    `test_engine` holds a single shared in-memory connection (StaticPool), so
+    two sessions on it are the same connection and cannot contend for a lock at
+    all. Anything testing what concurrent writers do to each other needs real
+    separate connections, which means a file.
+    """
+    from app.core.db import install_sqlite_pragmas
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path.as_posix()}/probe.db")
+    install_sqlite_pragmas(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    await engine.dispose()
 
 
 @pytest.fixture(autouse=True)
