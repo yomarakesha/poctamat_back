@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session, utcnow
 from app.core.errors import AppError, ErrorCode
 from app.core.pagination import PageParams, page_params, paginate_page
+from app.core.ratelimit import rate_limit
 from app.modules.catalog.models import Postamat, PostamatStatus
 from app.modules.catalog.schemas import (
     PostamatPublicOut,
@@ -24,7 +25,12 @@ def _visible():
     return select(Postamat).where(Postamat.status != PostamatStatus.BLOCKED)
 
 
-@router.get("/postamats", response_model=PostamatPublicPage)
+# The postamat reads share the catalogue's bucket: they are the same
+# unauthenticated surface, hit by the same screen.
+@router.get(
+    "/postamats", response_model=PostamatPublicPage,
+    dependencies=[Depends(rate_limit("public", limit=120, window_seconds=60))],
+)
 async def list_postamats(
     city_id: uuid.UUID | None = Query(default=None),
     params: PageParams = Depends(page_params),
@@ -40,7 +46,10 @@ async def list_postamats(
     )
 
 
-@router.get("/postamats/{postamat_id}", response_model=PostamatPublicOut)
+@router.get(
+    "/postamats/{postamat_id}", response_model=PostamatPublicOut,
+    dependencies=[Depends(rate_limit("public", limit=120, window_seconds=60))],
+)
 async def get_postamat(
     postamat_id: uuid.UUID, session: AsyncSession = Depends(get_session)
 ) -> PostamatPublicOut:

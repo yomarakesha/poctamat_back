@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.core.ratelimit import rate_limit
 from app.modules.identity import service
 from app.modules.identity.schemas import (
     OtpRequest,
@@ -15,7 +16,10 @@ from app.modules.identity.schemas import (
 router = APIRouter(tags=["auth"])
 
 
-@router.post("/auth/otp/request", response_model=OtpRequestResult)
+@router.post(
+    "/auth/otp/request", response_model=OtpRequestResult,
+    dependencies=[Depends(rate_limit("otp", limit=3, window_seconds=600))],
+)
 async def request_otp(payload: OtpRequest) -> OtpRequestResult:
     # The code itself is deliberately absent from this response: only its length
     # and lifetime travel over the wire, so the caller can render the input.

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.context import get_language
 from app.core.db import get_session
+from app.core.ratelimit import rate_limit
 from app.modules.catalog.models import CellType, City
 from app.modules.catalog.schemas import CellTypeOut, CityOut, localized
 
@@ -12,7 +13,10 @@ router = APIRouter(tags=["catalog"])
 
 # Neither list is paginated: both are small fixed reference tables that a client
 # fetches once and caches, so a page envelope would only get in the way.
-@router.get("/cities", response_model=list[CityOut])
+@router.get(
+    "/cities", response_model=list[CityOut],
+    dependencies=[Depends(rate_limit("public", limit=120, window_seconds=60))],
+)
 async def list_cities(
     request: Request, session: AsyncSession = Depends(get_session)
 ) -> list[CityOut]:
@@ -25,7 +29,10 @@ async def list_cities(
     ]
 
 
-@router.get("/cell-types", response_model=list[CellTypeOut])
+@router.get(
+    "/cell-types", response_model=list[CellTypeOut],
+    dependencies=[Depends(rate_limit("public", limit=120, window_seconds=60))],
+)
 async def list_cell_types(
     request: Request, session: AsyncSession = Depends(get_session)
 ) -> list[CellTypeOut]:
