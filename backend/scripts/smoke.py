@@ -299,7 +299,10 @@ async def main() -> int:
                       f"{before['items'][0]['free']}{RESET}")
 
             created = await call(
-                client, "POST", "/api/v1/bookings", headers=bearer, expect=201,
+                client, "POST", "/api/v1/bookings", expect=201,
+                # Booking allocates a real cell, so the endpoint refuses a
+                # request it could not safely replay after a dropped connection.
+                headers=bearer | {"Idempotency-Key": "smoke-booking-1"},
                 json={
                     "postamat_id": postamat_id,
                     "cell_type_id": fleet["cell_type_id"],

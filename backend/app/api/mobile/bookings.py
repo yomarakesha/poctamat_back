@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.deps import require_client
 from app.core.errors import AppError, ErrorCode
+from app.core.idempotency import require_idempotency_key
 from app.core.pagination import PageParams, page_params, paginate_page
 from app.core.types import utc_isoformat
 from app.modules.booking import service
@@ -69,7 +70,10 @@ async def _own_booking(
     return booking
 
 
-@router.post("", response_model=BookingCreated, status_code=201)
+@router.post(
+    "", response_model=BookingCreated, status_code=201,
+    dependencies=[Depends(require_idempotency_key)],
+)
 async def create_booking(
     payload: BookingCreate,
     session: AsyncSession = Depends(get_session),

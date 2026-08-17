@@ -3,6 +3,7 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import jwt
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import String, UniqueConstraint, select
@@ -11,7 +12,26 @@ from sqlalchemy.orm import Mapped, mapped_column
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.db import Base, Timestamped, UUIDPrimaryKey, get_session, session_scope
-from app.core.errors import ErrorCode
+from app.core.errors import AppError, ErrorCode
+from app.core.security import decode_token
+
+
+def require_idempotency_key(request: Request) -> str:
+    """Refuse a write that cannot be retried safely.
+
+    Booking allocates a physical cell and holds it for ten minutes. A retry
+    after a dropped connection, or a double tap on the button, would otherwise
+    take a second cell that nobody is coming to fill. The key is what lets the
+    middleware answer the repeat with the first response instead.
+    """
+    key = request.headers.get("Idempotency-Key")
+    if not key:
+        raise AppError(
+            ErrorCode.IDEMPOTENCY_KEY_REQUIRED,
+            "This endpoint requires an Idempotency-Key header.", 400,
+            details={"header": "Idempotency-Key"},
+        )
+    return key
 
 
 class IdempotencyRecord(UUIDPrimaryKey, Timestamped, Base):
@@ -28,22 +48,45 @@ class IdempotencyRecord(UUIDPrimaryKey, Timestamped, Base):
     response_body: Mapped[str] = mapped_column(String)
 
 
+def _subject_from_token(request: Request) -> str | None:
+    """Read the caller's identity out of the bearer token, if there is one.
+
+    The token is decoded here rather than taken from `request.state`, because
+    middleware runs before FastAPI resolves dependencies: whatever `require_client`
+    sets is set long after this has had to decide who owns the key. An invalid or
+    expired token yields None and the request falls back to its address — the
+    route's own auth dependency is what rejects it a moment later, and this
+    function must not decide that question twice.
+    """
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        return None
+    try:
+        claims = decode_token(header.removeprefix("Bearer "))
+    except jwt.PyJWTError:
+        return None
+    subject_id = claims.get("sub")
+    if not subject_id:
+        return None
+    return f"{claims.get('typ', 'subject')}:{subject_id}"
+
+
 def _owner(request: Request) -> str:
     """Identify who owns this idempotency key.
 
-    Keys are client-chosen, so without an owner two different clients that pick
-    the same key on the same path could read each other's memoized response —
-    including response bodies that will carry cell numbers and pickup PINs once
-    those endpoints exist. Prefer the authenticated subject; it is checked first
-    because it is the strong identity, and this whole IP-based branch is a
-    fallback that tightens automatically once Task 12 wires up auth middleware
-    and starts setting `request.state.subject_id`. Read it defensively with
-    `getattr` since that middleware does not exist yet and must not make this
-    raise today. The two namespaces are prefixed so they can never collide.
+    Keys are client-chosen, so without an owner two clients that pick the same
+    key on the same path would read each other's memoized response — including
+    bodies carrying cell numbers and access PINs. The authenticated subject is
+    the strong identity and is preferred; the address is a fallback for the
+    unauthenticated surface, and a poor one, since a whole building behind NAT
+    shares it. The namespaces are prefixed so they can never collide.
     """
     subject_id = getattr(request.state, "subject_id", None)
     if subject_id:
         return f"subject:{subject_id}"
+    from_token = _subject_from_token(request)
+    if from_token:
+        return from_token
     if request.client:
         return f"ip:{request.client.host}"
     return "anonymous"

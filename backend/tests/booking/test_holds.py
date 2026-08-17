@@ -56,7 +56,7 @@ async def test_the_timeline_records_the_cancellation(session):
 
 
 async def test_the_released_cell_can_be_booked_again(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, admin_token, city, cell_type, postamat
 ):
     from app.modules.catalog.models import Cell
 
@@ -70,11 +70,10 @@ async def test_the_released_cell_can_be_booked_again(
                           "duration_hours": hours, "amount_minor": 1800}
                          for hours in (12, 24, 48)
                      ]})
-    headers = {"Authorization": f"Bearer {client_token}"}
     body = {"postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
             "duration_hours": 24, "recipient_phone": "+99365000001"}
 
-    first = await client.post("/api/v1/bookings", json=body, headers=headers)
+    first = await book(body)
     assert first.status_code == 201
 
     booking = await session.get(Booking, uuid.UUID(first.json()["id"]))
@@ -83,5 +82,5 @@ async def test_the_released_cell_can_be_booked_again(
 
     assert len(await release_expired_holds(session)) == 1
 
-    again = await client.post("/api/v1/bookings", json=body, headers=headers)
+    again = await book(body)
     assert again.status_code == 201

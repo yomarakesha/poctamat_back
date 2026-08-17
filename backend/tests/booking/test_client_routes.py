@@ -25,31 +25,29 @@ def _body(postamat, cell_type):
 
 
 async def test_the_list_shows_the_clients_own_bookings_newest_first(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat)
-    headers = {"Authorization": f"Bearer {client_token}"}
-    first = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                              headers=headers)
-    second = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                               headers=headers)
+    first = await book(_body(postamat, cell_type))
+    second = await book(_body(postamat, cell_type))
 
-    listed = await client.get("/api/v1/bookings", headers=headers)
+    listed = await client.get("/api/v1/bookings",
+                              headers={"Authorization": f"Bearer {client_token}"})
     assert listed.status_code == 200
-    ids = [item["id"] for item in listed.json()["items"]]
-    assert set(ids) == {first.json()["id"], second.json()["id"]}
+    assert [item["id"] for item in listed.json()["items"]] == [
+        second.json()["id"], first.json()["id"]
+    ]
     assert listed.json()["pagination"]["total"] == 2
 
 
 async def test_another_clients_booking_is_invisible(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, admin_token, city, cell_type, postamat
 ):
     from app.core.security import create_access_token
     from app.modules.identity.models import Client
 
     await _ready(client, session, admin_token, city, cell_type, postamat)
-    created = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                                headers={"Authorization": f"Bearer {client_token}"})
+    created = await book(_body(postamat, cell_type))
 
     stranger = Client(phone="+99361000009", full_name="Чужой")
     session.add(stranger)
@@ -67,15 +65,13 @@ async def test_another_clients_booking_is_invisible(
 
 
 async def test_cancelling_frees_the_cell_for_the_next_booking(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat, cells=1)
     headers = {"Authorization": f"Bearer {client_token}"}
-    created = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                                headers=headers)
+    created = await book(_body(postamat, cell_type))
 
-    sold_out = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                                 headers=headers)
+    sold_out = await book(_body(postamat, cell_type))
     assert sold_out.status_code == 409
 
     cancelled = await client.post(f"/api/v1/bookings/{created.json()['id']}/cancel",
@@ -83,18 +79,16 @@ async def test_cancelling_frees_the_cell_for_the_next_booking(
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == BookingStatus.CANCELLED
 
-    again = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                              headers=headers)
+    again = await book(_body(postamat, cell_type))
     assert again.status_code == 201
 
 
 async def test_only_active_bookings_are_listed_when_asked(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat, cells=1)
     headers = {"Authorization": f"Bearer {client_token}"}
-    created = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                                headers=headers)
+    created = await book(_body(postamat, cell_type))
     await client.post(f"/api/v1/bookings/{created.json()['id']}/cancel",
                       headers=headers, json={"reason": "передумал"})
 
@@ -105,12 +99,11 @@ async def test_only_active_bookings_are_listed_when_asked(
 
 
 async def test_resending_the_courier_pin_returns_a_new_one(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat)
     headers = {"Authorization": f"Bearer {client_token}"}
-    created = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                                headers=headers)
+    created = await book(_body(postamat, cell_type))
     original = created.json()["codes"]["courier"]
 
     resent = await client.post(
@@ -122,14 +115,13 @@ async def test_resending_the_courier_pin_returns_a_new_one(
 
 
 async def test_the_old_courier_pin_stops_working_after_a_resend(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
     from app.modules.booking.codes import find_code
 
     await _ready(client, session, admin_token, city, cell_type, postamat)
     headers = {"Authorization": f"Bearer {client_token}"}
-    created = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
-                                headers=headers)
+    created = await book(_body(postamat, cell_type))
     original = created.json()["codes"]["courier"]
 
     resent = await client.post(
@@ -140,12 +132,12 @@ async def test_the_old_courier_pin_stops_working_after_a_resend(
 
 
 async def test_resending_is_refused_when_nobody_is_couriering(
-    client, session, client_token, admin_token, city, cell_type, postamat
+    client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat)
     headers = {"Authorization": f"Bearer {client_token}"}
     body = _body(postamat, cell_type) | {"depositor": "owner", "courier_phone": None}
-    created = await client.post("/api/v1/bookings", json=body, headers=headers)
+    created = await book(body)
 
     response = await client.post(
         f"/api/v1/bookings/{created.json()['id']}/courier/resend", headers=headers

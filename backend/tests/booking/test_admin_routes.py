@@ -17,7 +17,8 @@ async def _booked(client, session, client_token, admin_token, city, cell_type, p
         "/api/v1/bookings",
         json={"postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
               "duration_hours": 24, "recipient_phone": "+99365000001"},
-        headers={"Authorization": f"Bearer {client_token}"},
+        headers={"Authorization": f"Bearer {client_token}",
+                 "Idempotency-Key": "admin-routes-1"},
     )
     return created.json()
 
