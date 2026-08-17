@@ -17,6 +17,8 @@ failing the run, so this script stays useful while the plan is still landing.
 """
 
 import asyncio
+import hashlib
+import hmac
 import json
 import os
 import sys
@@ -25,9 +27,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# The output is full of Turkmen and Russian; a console that defaults to cp1251
+# otherwise kills the run halfway through with a UnicodeEncodeError.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from dotenv import load_dotenv  # noqa: E402
 
-from app.core.config import BACKEND_DIR  # noqa: E402
+from app.core.config import BACKEND_DIR, get_settings  # noqa: E402
 
 load_dotenv(BACKEND_DIR / ".env")
 
@@ -69,6 +76,9 @@ def _import_models() -> None:
         "app.modules.identity.models",
         "app.modules.catalog.models",
         "app.modules.booking.models",
+        "app.modules.notify.models",
+        "app.modules.payments.models",
+        "app.modules.custody.models",
     ):
         try:
             __import__(module)
@@ -331,9 +341,57 @@ async def main() -> int:
                     client, "GET", f"/api/v1/postamats/{postamat_id}/availability"
                 )
                 if after and before:
-                    # The whole plan in one line: cancelling gives the cell back.
+                    # Plan 2a in one line: cancelling gives the cell back.
                     freed = after["items"][0]["free"] == before["items"][0]["free"]
                     print(f"{GREY}     cell returned to the pool: {freed}{RESET}")
+
+            print(f"\n{YELLOW}-- paying --{RESET}")
+            paid_booking = await call(
+                client, "POST", "/api/v1/bookings", expect=201,
+                headers=bearer | {"Idempotency-Key": "smoke-booking-2"},
+                json={
+                    "postamat_id": postamat_id,
+                    "cell_type_id": fleet["cell_type_id"],
+                    "duration_hours": 24,
+                    "recipient_phone": "+99365000001",
+                },
+            )
+            if paid_booking:
+                started = await call(
+                    client, "POST",
+                    f"/api/v1/bookings/{paid_booking['id']}/payment", expect=201,
+                    headers=bearer | {"Idempotency-Key": "smoke-payment-1"},
+                )
+                if started:
+                    # Signed the way the acquirer will sign it: the endpoint is
+                    # unauthenticated and the signature is the whole of its trust.
+                    body = json.dumps({
+                        "payment_id": started["payment_id"],
+                        "provider_payment_id": f"mock-{started['payment_id']}",
+                        "status": "succeeded",
+                    }).encode()
+                    signature = hmac.new(
+                        get_settings().payment_webhook_secret.encode(), body,
+                        hashlib.sha256,
+                    ).hexdigest()
+                    await call(
+                        client, "POST", "/api/v1/webhooks/payments/mock",
+                        content=body,
+                        headers={"X-Signature": signature,
+                                 "Content-Type": "application/json"},
+                    )
+                    detail = await call(
+                        client, "GET", f"/api/v1/bookings/{paid_booking['id']}",
+                        headers=bearer,
+                    )
+                    if detail:
+                        print(f"{GREY}     status after payment: "
+                              f"{detail['status']}{RESET}")
+
+            print(f"\n{YELLOW}-- notifications --{RESET}")
+            await call(client, "GET", "/api/v1/notifications", headers=bearer)
+            await call(client, "POST", "/api/v1/notifications/read-all",
+                       headers=bearer, expect=204)
 
     await engine.dispose()
     _db_file.unlink(missing_ok=True)
