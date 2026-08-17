@@ -228,20 +228,20 @@ async def main() -> int:
         if requested is not None:
             from app.modules.identity.service import peek_otp
 
-            code = await peek_otp(phone)
+            code = await peek_otp(requested["request_id"])
             print(f"{GREY}     one-time code read out of the key-value store: {code}{RESET}")
             await call(
                 client,
                 "POST",
                 "/api/v1/auth/otp/verify",
-                json={"phone": phone, "code": "000000"},
-                expect=400,
+                json={"request_id": requested["request_id"], "code": "000000"},
+                expect=401,
             )
             tokens = await call(
                 client,
                 "POST",
                 "/api/v1/auth/otp/verify",
-                json={"phone": phone, "code": code},
+                json={"request_id": requested["request_id"], "code": code},
             )
             if tokens:
                 access = tokens.get("access_token")

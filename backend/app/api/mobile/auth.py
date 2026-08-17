@@ -5,8 +5,10 @@ from app.core.config import get_settings
 from app.core.context import get_language
 from app.core.db import get_session
 from app.core.ratelimit import rate_limit
+from app.core.types import utc_isoformat
 from app.modules.identity import service
 from app.modules.identity.schemas import (
+    ClientTokenPair,
     OtpRequest,
     OtpRequestResult,
     OtpVerify,
@@ -15,6 +17,10 @@ from app.modules.identity.schemas import (
 )
 
 router = APIRouter(tags=["auth"])
+
+
+def _expires_in() -> int:
+    return get_settings().access_token_ttl_minutes * 60
 
 
 @router.post(
@@ -26,22 +32,29 @@ async def request_otp(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> OtpRequestResult:
-    # The code itself is deliberately absent from this response: only its length
-    # and lifetime travel over the wire, so the caller can render the input. The
-    # code goes to the phone by SMS.
-    ttl = await service.issue_otp(session, payload.phone, get_language(request))
-    return OtpRequestResult(code_length=get_settings().otp_length, expires_in_seconds=ttl)
+    # The code itself is deliberately absent from this response: it travels by
+    # SMS, and what comes back is only the request id to quote when verifying.
+    request_id, expires_at, resend_after = await service.issue_otp(
+        session, payload.phone, get_language(request)
+    )
+    return OtpRequestResult(
+        request_id=request_id, code_length=get_settings().otp_length,
+        expires_at=utc_isoformat(expires_at), resend_after=resend_after,
+    )
 
 
-@router.post("/auth/otp/verify", response_model=TokenPair)
+@router.post("/auth/otp/verify", response_model=ClientTokenPair)
 async def verify_otp(
     payload: OtpVerify, session: AsyncSession = Depends(get_session)
-) -> TokenPair:
-    await service.verify_otp(payload.phone, payload.code)
-    client, is_new = await service.get_or_create_client(session, payload.phone)
+) -> ClientTokenPair:
+    phone = await service.verify_otp(str(payload.request_id), payload.code)
+    client, _ = await service.get_or_create_client(session, phone)
     access, refresh = await service.issue_token_pair(session, "client", client.id)
     await session.commit()
-    return TokenPair(access_token=access, refresh_token=refresh, is_new_client=is_new)
+    return ClientTokenPair(
+        access_token=access, refresh_token=refresh, expires_in=_expires_in(),
+        profile_complete=client.profile_complete,
+    )
 
 
 @router.post("/auth/refresh", response_model=TokenPair)
@@ -52,7 +65,8 @@ async def refresh(
         session, payload.refresh_token, "client"
     )
     await session.commit()
-    return TokenPair(access_token=access, refresh_token=rotated)
+    return TokenPair(access_token=access, refresh_token=rotated,
+                     expires_in=_expires_in())
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)

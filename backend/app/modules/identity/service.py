@@ -15,8 +15,12 @@ from app.modules.notify.models import NotificationChannel, NotificationKind
 from app.modules.notify.service import notify
 
 
-def _otp_key(phone: str) -> str:
-    return f"otp:{phone}"
+def _otp_key(request_id: str) -> str:
+    return f"otp:req:{request_id}"
+
+
+def _resend_key(phone: str) -> str:
+    return f"otp:phone:{phone}"
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -27,11 +31,38 @@ def _as_utc(value: datetime) -> datetime:
 
 async def issue_otp(
     session: AsyncSession, phone: str, language: str | None = None
-) -> int:
+) -> tuple[str, datetime, int]:
+    """Send a login code and return `(request_id, expires_at, resend_after)`.
+
+    The code is filed under a request id rather than under the phone, because
+    verification quotes that id back: two devices asking for a code on the same
+    number then hold two independent attempts counters instead of overwriting
+    one another's.
+    """
     settings = get_settings()
+    store = get_kvstore()
+
+    blocked = await session.scalar(
+        select(Client).where(Client.phone == phone, Client.is_blocked.is_(True))
+    )
+    if blocked is not None:
+        raise AppError(ErrorCode.CLIENT_BLOCKED, "Client is blocked.", 403)
+
+    live = await store.get(_resend_key(phone))
+    if live:
+        raise AppError(
+            ErrorCode.OTP_REQUEST_TOO_SOON, "Wait before requesting a new code.", 429,
+            details={"resend_after": settings.otp_resend_seconds},
+        )
+
+    request_id = str(uuid.uuid4())
     code = "".join(secrets.choice("0123456789") for _ in range(settings.otp_length))
-    await get_kvstore().put(
-        _otp_key(phone), {"code": code, "attempts": "0"}, settings.otp_ttl_seconds
+    await store.put(
+        _otp_key(request_id), {"code": code, "attempts": "0", "phone": phone},
+        settings.otp_ttl_seconds,
+    )
+    await store.put(
+        _resend_key(phone), {"request_id": request_id}, settings.otp_resend_seconds
     )
     # The client may not exist yet — this is also the registration path — so the
     # language comes from the request rather than from a stored profile.
@@ -41,35 +72,43 @@ async def issue_otp(
         channel=NotificationChannel.SMS, code=code,
     )
     await session.commit()
-    return settings.otp_ttl_seconds
+    return (
+        request_id,
+        utcnow() + timedelta(seconds=settings.otp_ttl_seconds),
+        settings.otp_resend_seconds,
+    )
 
 
-async def peek_otp(phone: str) -> str | None:
-    """Read the live code. For tests only — no route may expose this."""
-    stored = await get_kvstore().get(_otp_key(phone))
+async def peek_otp(request_id: str) -> str | None:
+    """Read the live code. For tests and the smoke script — no route exposes it."""
+    stored = await get_kvstore().get(_otp_key(request_id))
     return stored["code"] if stored else None
 
 
-async def verify_otp(phone: str, code: str) -> None:
+async def verify_otp(request_id: str, code: str) -> str:
+    """Check a code and return the phone it was issued for."""
     settings = get_settings()
     store = get_kvstore()
-    stored = await store.get(_otp_key(phone))
+    stored = await store.get(_otp_key(request_id))
     if not stored:
-        raise AppError(ErrorCode.OTP_EXPIRED, "No active code for this number.", 400)
+        # One code for both "never existed" and "expired": a caller guessing
+        # request ids learns nothing from the difference.
+        raise AppError(ErrorCode.OTP_NOT_FOUND, "No active code for this request.", 401)
 
     attempts = int(stored["attempts"]) + 1
     if attempts >= settings.otp_max_attempts:
-        await store.delete(_otp_key(phone))
-        raise AppError(ErrorCode.OTP_TOO_MANY_ATTEMPTS, "Too many attempts.", 429)
+        await store.delete(_otp_key(request_id))
+        raise AppError(ErrorCode.OTP_ATTEMPTS_EXCEEDED, "Too many attempts.", 429)
 
     if not secrets.compare_digest(stored["code"], code):
-        await store.set_field(_otp_key(phone), "attempts", str(attempts))
+        await store.set_field(_otp_key(request_id), "attempts", str(attempts))
         raise AppError(
-            ErrorCode.OTP_INVALID, "Wrong code.", 400,
+            ErrorCode.OTP_INVALID, "Wrong code.", 401,
             details={"attempts_left": settings.otp_max_attempts - attempts},
         )
 
-    await store.delete(_otp_key(phone))
+    await store.delete(_otp_key(request_id))
+    return stored["phone"]
 
 
 async def get_or_create_client(session: AsyncSession, phone: str) -> tuple[Client, bool]:
@@ -118,7 +157,9 @@ async def _load_usable_refresh_token(
         or stored.revoked_at is not None
         or _as_utc(stored.expires_at) <= utcnow()
     ):
-        raise AppError(ErrorCode.TOKEN_INVALID, "Refresh token is not usable.", 401)
+        raise AppError(
+            ErrorCode.REFRESH_TOKEN_INVALID, "Refresh token is not usable.", 401
+        )
     return stored
 
 

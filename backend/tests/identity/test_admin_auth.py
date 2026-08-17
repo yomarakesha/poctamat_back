@@ -49,9 +49,12 @@ async def test_blocked_client_cannot_refresh(client, session):
     from app.modules.identity.service import peek_otp
 
     phone = "+99362123456"
-    await client.post("/api/v1/auth/otp/request", json={"phone": phone})
-    issued = await client.post("/api/v1/auth/otp/verify",
-                               json={"phone": phone, "code": await peek_otp(phone)})
+    requested = await client.post("/api/v1/auth/otp/request", json={"phone": phone})
+    request_id = requested.json()["request_id"]
+    issued = await client.post(
+        "/api/v1/auth/otp/verify",
+        json={"request_id": request_id, "code": await peek_otp(request_id)},
+    )
     assert issued.status_code == 200
 
     blocked = await session.scalar(select(Client).where(Client.phone == phone))

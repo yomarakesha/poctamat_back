@@ -9,7 +9,7 @@ async def test_the_login_code_is_sent_by_sms(client):
     response = await client.post("/api/v1/auth/otp/request", json={"phone": phone})
     assert response.status_code == 200
 
-    code = await peek_otp(phone)
+    code = await peek_otp(response.json()["request_id"])
     outbox = get_sms_provider().outbox
     assert outbox[-1].phone == phone
     assert code in outbox[-1].text

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     otp_length: int = 6
     otp_ttl_seconds: int = 300
     otp_max_attempts: int = 5
+    otp_resend_seconds: int = 60
 
     pin_length: int = 5
     hold_minutes: int = 10
