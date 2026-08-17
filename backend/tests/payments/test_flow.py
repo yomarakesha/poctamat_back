@@ -128,7 +128,7 @@ async def test_a_payment_can_be_read_back_by_its_owner_only(
     mine = await client.get(f"/api/v1/payments/{payment_id}", headers=headers)
     assert mine.json()["status"] == PaymentStatus.PENDING
 
-    stranger = Client(phone="+99361000055", full_name="Чужой")
+    stranger = Client(phone="+99361000055", last_name="Чужой", first_name="Чужой")
     session.add(stranger)
     await session.commit()
     await session.refresh(stranger)

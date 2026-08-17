@@ -49,7 +49,7 @@ async def test_another_clients_booking_is_invisible(
     await _ready(client, session, admin_token, city, cell_type, postamat)
     created = await book(_body(postamat, cell_type))
 
-    stranger = Client(phone="+99361000009", full_name="Чужой")
+    stranger = Client(phone="+99361000009", last_name="Чужой", first_name="Чужой")
     session.add(stranger)
     await session.commit()
     await session.refresh(stranger)

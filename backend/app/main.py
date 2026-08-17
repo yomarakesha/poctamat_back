@@ -11,6 +11,7 @@ from app.api.mobile import auth as mobile_auth
 from app.api.mobile import bookings as mobile_bookings
 from app.api.mobile import notifications as mobile_notifications
 from app.api.mobile import payments as mobile_payments
+from app.api.mobile import profile as mobile_profile
 from app.api.public import catalog as public_catalog
 from app.api.public import media as public_media
 from app.api.public import postamats as public_postamats
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(mobile_bookings.router, prefix=API_PREFIX)
     app.include_router(mobile_notifications.router, prefix=API_PREFIX)
     app.include_router(mobile_payments.router, prefix=API_PREFIX)
+    app.include_router(mobile_profile.router, prefix=API_PREFIX)
     app.include_router(admin_auth.router, prefix=API_PREFIX)
     app.include_router(admin_postamats.router, prefix=API_PREFIX)
     app.include_router(admin_cells.router, prefix=API_PREFIX)

@@ -64,7 +64,7 @@ async def test_the_same_key_from_another_client_is_a_separate_booking(
     from app.modules.identity.models import Client
 
     await _ready(client, session, admin_token, city, cell_type, postamat)
-    other = Client(phone="+99361000077", full_name="Второй")
+    other = Client(phone="+99361000077", last_name="Второй", first_name="Второй")
     session.add(other)
     await session.commit()
     await session.refresh(other)

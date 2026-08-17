@@ -161,7 +161,8 @@ async def postamat(session, city):
 async def booking_client(session):
     from app.modules.identity.models import Client
 
-    row = Client(phone="+99361000001", full_name="Отправитель")
+    row = Client(phone="+99361000001", last_name="Отправителев",
+                 first_name="Мырат")
     session.add(row)
     await session.commit()
     await session.refresh(row)

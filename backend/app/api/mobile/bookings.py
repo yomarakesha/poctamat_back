@@ -69,6 +69,12 @@ async def create_booking(
     session: AsyncSession = Depends(get_session),
     client: Client = Depends(require_client),
 ) -> BookingCreated:
+    if not client.profile_complete:
+        # The parcel is handed over against a name at the counter, and the
+        # registration screen exists for exactly this moment.
+        raise AppError(ErrorCode.PROFILE_INCOMPLETE,
+                       "Fill in your name before booking.", 422)
+
     postamat = await session.get(Postamat, payload.postamat_id)
     if postamat is None:
         raise AppError(ErrorCode.NOT_FOUND, "Postamat not found.", 404)

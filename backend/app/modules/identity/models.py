@@ -11,11 +11,25 @@ class Client(UUIDPrimaryKey, Timestamped, Base):
     __tablename__ = "clients"
 
     phone: Mapped[str] = mapped_column(String(16), unique=True, index=True)
-    full_name: Mapped[str | None] = mapped_column(String(200))
+    # Three fields rather than one string: the registration screen asks for
+    # surname, name and an optional patronymic, and a parcel handed over at the
+    # counter is checked against a passport that spells them separately.
+    last_name: Mapped[str | None] = mapped_column(String(100))
+    first_name: Mapped[str | None] = mapped_column(String(100))
+    middle_name: Mapped[str | None] = mapped_column(String(100))
     language: Mapped[str] = mapped_column(String(2), default="tk")
-    default_city_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
+    city_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     blocked_reason: Mapped[str | None] = mapped_column(String(500))
+
+    @property
+    def profile_complete(self) -> bool:
+        """Both names present. Booking is refused until they are.
+
+        The counter needs somebody to hand the parcel to, and «Получатель» on
+        the screen is a name, not a phone number.
+        """
+        return bool(self.last_name and self.first_name)
 
 
 class Role(UUIDPrimaryKey, Timestamped, Base):
