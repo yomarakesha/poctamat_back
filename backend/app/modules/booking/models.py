@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base, Timestamped, UUIDPrimaryKey
+from app.core.db import Base, Timestamped, UUIDPrimaryKey, utcnow
 
 
 class BookingStatus(StrEnum):
@@ -52,6 +52,13 @@ class Booking(UUIDPrimaryKey, Timestamped, Base):
         Index("ix_bookings_client_created", "client_id", "created_at"),
     )
 
+    # Filled in Python rather than by CURRENT_TIMESTAMP, which has second
+    # resolution: bookings made in the same second would otherwise come back in
+    # arbitrary order and the client's list would shuffle between requests.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, server_default=func.now()
+    )
+
     client_id: Mapped[uuid.UUID] = mapped_column(index=True)
     postamat_id: Mapped[uuid.UUID] = mapped_column(index=True)
     cell_id: Mapped[uuid.UUID] = mapped_column(index=True)
@@ -79,7 +86,7 @@ class Booking(UUIDPrimaryKey, Timestamped, Base):
 
     events: Mapped[list["BookingEvent"]] = relationship(
         back_populates="booking", lazy="selectin", cascade="all, delete-orphan",
-        order_by="BookingEvent.created_at",
+        order_by="BookingEvent.seq",
     )
     codes: Mapped[list["AccessCode"]] = relationship(
         back_populates="booking", lazy="selectin", cascade="all, delete-orphan",
@@ -92,6 +99,12 @@ class BookingEvent(UUIDPrimaryKey, Timestamped, Base):
     booking_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("bookings.id"), index=True
     )
+    # Position in this booking's timeline, and the only thing it is ordered by.
+    # Timestamps cannot do the job: SQLite's CURRENT_TIMESTAMP has second
+    # resolution and hands every row of one statement the same value, so two
+    # transitions written together — payment writes two — would come back in
+    # arbitrary order and show the customer a history that never happened.
+    seq: Mapped[int] = mapped_column(Integer, default=0)
     # The timeline the app renders. One row per transition, so the screen never
     # has to reconstruct history from a single status column.
     status: Mapped[BookingStatus] = mapped_column(String(24))

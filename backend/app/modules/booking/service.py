@@ -68,7 +68,8 @@ async def record_event(
     # that is being written, not a timeline one entry out of date.
     if state.persistent and "events" in state.unloaded:
         await session.refresh(booking, ["events"])
-    event = BookingEvent(status=status, message=message, details=details)
+    event = BookingEvent(seq=len(booking.events), status=status, message=message,
+                         details=details)
     booking.events.append(event)
     return event
 
