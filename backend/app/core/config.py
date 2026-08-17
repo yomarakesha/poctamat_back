@@ -31,6 +31,32 @@ class Settings(BaseSettings):
     hold_minutes: int = 10
     offline_ttl_hours: int = 24
 
+    # Payments. The provider is named rather than imported, so the mock and the
+    # real acquirer are chosen by configuration and not by an edit.
+    payment_provider: str = "mock"
+    payment_webhook_secret: str = "dev-webhook-secret-change-me"
+    payment_return_url: str = "https://example.invalid/payment/done"
+
+    # SMS. One channel carries both the login code and the courier PIN.
+    # "log" in development and in tests; "post_tm" against the real gateway.
+    sms_provider: str = "log"
+    sms_api_token: str = ""
+    sms_base_url: str = "https://sms.post.tm"
+    sms_timeout_seconds: float = 10.0
+
+    # The overdue clock. Every stage is configuration because the product will
+    # tune these without a deploy, and because a literal buried in a worker is a
+    # rule nobody can find.
+    reminder_hours_before: int = 2
+    grace_hours: int = 2
+    removal_after_hours: int = 24
+    custody_disposal_days: int = 30
+
+    # Uploads. Photographs of a postamat, so a customer can recognise the
+    # machine and an operator can confirm which one they are looking at.
+    media_root: str = "media"
+    max_upload_bytes: int = 5 * 1024 * 1024
+
     rental_durations: tuple[int, ...] = (12, 24, 48)
     default_language: str = "tk"
     supported_languages: tuple[str, ...] = ("tk", "ru", "en")
