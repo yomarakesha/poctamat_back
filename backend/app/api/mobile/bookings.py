@@ -1,16 +1,31 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.deps import require_client
 from app.core.errors import AppError, ErrorCode
+from app.core.pagination import PageParams, page_params, paginate_page
 from app.core.types import utc_isoformat
 from app.modules.booking import service
-from app.modules.booking.models import Booking
-from app.modules.booking.schemas import BookingCreate, BookingCreated, BookingOut
+from app.modules.booking.codes import reissue_code
+from app.modules.booking.models import (
+    Booking,
+    BookingStatus,
+    CELL_HELD_STATUSES,
+    CodePurpose,
+    Depositor,
+)
+from app.modules.booking.schemas import (
+    BookingCreate,
+    BookingCreated,
+    BookingOut,
+    BookingPage,
+    CancelRequest,
+    CourierCodeOut,
+)
 from app.modules.catalog.models import Cell, Postamat, PostamatStatus, Tariff
 from app.modules.identity.models import Client
 
@@ -90,10 +105,69 @@ async def create_booking(
     return BookingCreated(**await _out(session, booking), codes=codes)
 
 
+@router.get("", response_model=BookingPage)
+async def list_bookings(
+    active: bool = Query(default=False),
+    params: PageParams = Depends(page_params),
+    session: AsyncSession = Depends(get_session),
+    client: Client = Depends(require_client),
+) -> BookingPage:
+    stmt = (
+        select(Booking).where(Booking.client_id == client.id)
+        .order_by(Booking.created_at.desc())
+    )
+    if active:
+        stmt = stmt.where(Booking.status.in_(tuple(CELL_HELD_STATUSES)))
+    rows, meta = await paginate_page(session, stmt, params)
+    return BookingPage(
+        items=[BookingOut(**await _out(session, row)) for row in rows], pagination=meta
+    )
+
+
 @router.get("/{booking_id}", response_model=BookingOut)
 async def get_booking(
     booking_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
     client: Client = Depends(require_client),
 ) -> BookingOut:
-    return BookingOut(**await _out(session, await _own_booking(session, client, booking_id)))
+    booking = await _own_booking(session, client, booking_id)
+    return BookingOut(**await _out(session, booking))
+
+
+@router.post("/{booking_id}/cancel", response_model=BookingOut)
+async def cancel_booking(
+    booking_id: uuid.UUID,
+    payload: CancelRequest,
+    session: AsyncSession = Depends(get_session),
+    client: Client = Depends(require_client),
+) -> BookingOut:
+    booking = await _own_booking(session, client, booking_id)
+    await service.cancel(session, booking, reason=payload.reason, actor="client")
+    await session.commit()
+    return BookingOut(**await _out(session, booking))
+
+
+@router.post("/{booking_id}/courier/resend", response_model=CourierCodeOut)
+async def resend_courier_code(
+    booking_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    client: Client = Depends(require_client),
+) -> CourierCodeOut:
+    booking = await _own_booking(session, client, booking_id)
+    if booking.depositor != Depositor.COURIER or not booking.courier_phone:
+        # Nothing to resend, and issuing a courier PIN for a booking nobody is
+        # couriering would put a second live code in the sender's own hands.
+        raise AppError(ErrorCode.BOOKING_INVALID_STATE,
+                       "This booking has no courier.", 409)
+    if booking.status not in {BookingStatus.PENDING_PAYMENT, BookingStatus.PAID,
+                              BookingStatus.AWAITING_DEPOSIT}:
+        raise AppError(ErrorCode.BOOKING_INVALID_STATE,
+                       "The parcel has already been deposited.", 409)
+
+    code = reissue_code(booking, CodePurpose.COURIER)
+    await service.record_event(session, booking, booking.status,
+                               "PIN курьера отправлен повторно")
+    await session.commit()
+    # Delivering it by SMS is the notify module's job, which arrives with the
+    # provider in Plan 2b. Returning it here keeps the flow testable meanwhile.
+    return CourierCodeOut(courier_code=code)

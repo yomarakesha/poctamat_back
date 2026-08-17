@@ -113,31 +113,36 @@ async def create_booking(
     if session.in_transaction():
         await session.commit()
 
+    booking: Booking | None = None
+    plaintext: dict[CodePurpose, str] = {}
     async with write_transaction(session):
         taken = await _held_cell_ids(session, postamat_id)
         free = await free_cell_ids(session, postamat_id, cell_type_id, taken)
-        if not free:
-            raise AppError(
-                ErrorCode.SIZE_SOLD_OUT,
-                "No free cell of this size at this postamat.", 409,
-                details={"cell_type_id": str(cell_type_id)},
+        # Sold out is an answer, not a failed write: the transaction is closed
+        # normally and the refusal raised outside it. Rolling back instead would
+        # expire every object in the session for a request that wrote nothing.
+        if free:
+            booking = Booking(
+                client_id=client_id, postamat_id=postamat_id, cell_id=free[0],
+                cell_type_id=cell_type_id, duration_hours=duration_hours,
+                amount_minor=amount_minor, currency=currency,
+                status=BookingStatus.PENDING_PAYMENT, depositor=depositor,
+                courier_phone=courier_phone, recipient_phone=recipient_phone,
+                recipient_name=recipient_name,
+                hold_expires_at=utcnow() + timedelta(minutes=settings.hold_minutes),
             )
+            plaintext = issue_codes(booking)
+            session.add(booking)
+            await record_event(session, booking, BookingStatus.PENDING_PAYMENT,
+                               "Забронировано")
+            await session.flush()
 
-        booking = Booking(
-            client_id=client_id, postamat_id=postamat_id, cell_id=free[0],
-            cell_type_id=cell_type_id, duration_hours=duration_hours,
-            amount_minor=amount_minor, currency=currency,
-            status=BookingStatus.PENDING_PAYMENT, depositor=depositor,
-            courier_phone=courier_phone, recipient_phone=recipient_phone,
-            recipient_name=recipient_name,
-            hold_expires_at=utcnow() + timedelta(minutes=settings.hold_minutes),
+    if booking is None:
+        raise AppError(
+            ErrorCode.SIZE_SOLD_OUT,
+            "No free cell of this size at this postamat.", 409,
+            details={"cell_type_id": str(cell_type_id)},
         )
-        plaintext = issue_codes(booking)
-        session.add(booking)
-        await record_event(session, booking, BookingStatus.PENDING_PAYMENT,
-                           "Забронировано")
-        await session.flush()
-
     return booking, plaintext
 
 
