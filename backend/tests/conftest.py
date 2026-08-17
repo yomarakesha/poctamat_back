@@ -145,6 +145,26 @@ async def postamat(session, city):
 
 
 @pytest.fixture
+async def booking_client(session):
+    from app.modules.identity.models import Client
+
+    row = Client(phone="+99361000001", full_name="Отправитель")
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+@pytest.fixture
+def client_token(booking_client):
+    # Minted directly rather than through the OTP flow: a fixture that logs in
+    # makes every booking test depend on the login routes staying green.
+    from app.core.security import create_access_token
+
+    return create_access_token("client", booking_client.id)
+
+
+@pytest.fixture
 async def client(session):
     app = create_app()
     app.dependency_overrides[get_session] = lambda: session

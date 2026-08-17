@@ -5,6 +5,7 @@ from app.api.admin import cells as admin_cells
 from app.api.admin import postamats as admin_postamats
 from app.api.admin import tariffs as admin_tariffs
 from app.api.mobile import auth as mobile_auth
+from app.api.mobile import bookings as mobile_bookings
 from app.api.public import catalog as public_catalog
 from app.api.public import postamats as public_postamats
 from app.core.context import RequestContextMiddleware
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(mobile_auth.router, prefix=API_PREFIX)
+    app.include_router(mobile_bookings.router, prefix=API_PREFIX)
     app.include_router(admin_auth.router, prefix=API_PREFIX)
     app.include_router(admin_postamats.router, prefix=API_PREFIX)
     app.include_router(admin_cells.router, prefix=API_PREFIX)
