@@ -98,7 +98,7 @@ async def test_only_active_bookings_are_listed_when_asked(
     assert len(everything.json()["items"]) == 1
 
 
-async def test_resending_the_courier_pin_returns_a_new_one(
+async def test_resending_the_courier_pin_answers_202_without_the_code(
     client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat)
@@ -109,26 +109,32 @@ async def test_resending_the_courier_pin_returns_a_new_one(
     resent = await client.post(
         f"/api/v1/bookings/{created.json()['id']}/courier/resend", headers=headers
     )
-    assert resent.status_code == 200
-    assert resent.json()["courier_code"] != original
-    assert len(resent.json()["courier_code"]) == 5
+    assert resent.status_code == 202
+    # The new code exists only on the courier's phone: it must not come back
+    # through the sender's screen.
+    assert original not in resent.text
 
 
 async def test_the_old_courier_pin_stops_working_after_a_resend(
     client, session, book, client_token, admin_token, city, cell_type, postamat
 ):
+    import re
+
     from app.modules.booking.codes import find_code
+    from app.modules.notify.sms import get_sms_provider
 
     await _ready(client, session, admin_token, city, cell_type, postamat)
     headers = {"Authorization": f"Bearer {client_token}"}
     created = await book(_body(postamat, cell_type))
     original = created.json()["codes"]["courier"]
 
-    resent = await client.post(
+    await client.post(
         f"/api/v1/bookings/{created.json()['id']}/courier/resend", headers=headers
     )
+    texted = re.search(r"\d{5}", get_sms_provider().outbox[-1].text).group()
+
     assert await find_code(session, postamat.id, original) is None
-    assert await find_code(session, postamat.id, resent.json()["courier_code"]) is not None
+    assert await find_code(session, postamat.id, texted) is not None
 
 
 async def test_resending_is_refused_when_nobody_is_couriering(

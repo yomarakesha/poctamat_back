@@ -100,6 +100,3 @@ def booking_out(booking, cell_number: int) -> BookingOut:
 class CancelRequest(BaseModel):
     reason: str = Field(default="Отменено клиентом", min_length=1, max_length=500)
 
-
-class CourierCodeOut(BaseModel):
-    courier_code: str

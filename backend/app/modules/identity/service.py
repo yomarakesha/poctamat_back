@@ -11,6 +11,8 @@ from app.core.errors import AppError, ErrorCode
 from app.core.kvstore import get_kvstore
 from app.core.security import create_access_token, hash_token
 from app.modules.identity.models import AdminUser, Client, RefreshToken
+from app.modules.notify.models import NotificationChannel, NotificationKind
+from app.modules.notify.service import notify
 
 
 def _otp_key(phone: str) -> str:
@@ -23,12 +25,22 @@ def _as_utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-async def issue_otp(phone: str) -> int:
+async def issue_otp(
+    session: AsyncSession, phone: str, language: str | None = None
+) -> int:
     settings = get_settings()
     code = "".join(secrets.choice("0123456789") for _ in range(settings.otp_length))
     await get_kvstore().put(
         _otp_key(phone), {"code": code, "attempts": "0"}, settings.otp_ttl_seconds
     )
+    # The client may not exist yet — this is also the registration path — so the
+    # language comes from the request rather than from a stored profile.
+    await notify(
+        session, client_id=None, phone=phone, kind=NotificationKind.OTP,
+        language=language or settings.default_language,
+        channel=NotificationChannel.SMS, code=code,
+    )
+    await session.commit()
     return settings.otp_ttl_seconds
 
 

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.context import get_language
 from app.core.db import get_session
 from app.core.ratelimit import rate_limit
 from app.modules.identity import service
@@ -20,10 +21,15 @@ router = APIRouter(tags=["auth"])
     "/auth/otp/request", response_model=OtpRequestResult,
     dependencies=[Depends(rate_limit("otp", limit=3, window_seconds=600))],
 )
-async def request_otp(payload: OtpRequest) -> OtpRequestResult:
+async def request_otp(
+    payload: OtpRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> OtpRequestResult:
     # The code itself is deliberately absent from this response: only its length
-    # and lifetime travel over the wire, so the caller can render the input.
-    ttl = await service.issue_otp(payload.phone)
+    # and lifetime travel over the wire, so the caller can render the input. The
+    # code goes to the phone by SMS.
+    ttl = await service.issue_otp(session, payload.phone, get_language(request))
     return OtpRequestResult(code_length=get_settings().otp_length, expires_in_seconds=ttl)
 
 

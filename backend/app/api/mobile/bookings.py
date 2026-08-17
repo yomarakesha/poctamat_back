@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,11 +25,12 @@ from app.modules.booking.schemas import (
     BookingOut,
     BookingPage,
     CancelRequest,
-    CourierCodeOut,
     booking_out,
 )
 from app.modules.catalog.models import Postamat, PostamatStatus, Tariff
 from app.modules.catalog.service import cell_numbers
+from app.modules.notify.models import NotificationChannel, NotificationKind
+from app.modules.notify.service import notify
 from app.modules.identity.models import Client
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -140,12 +141,12 @@ async def cancel_booking(
     return await _out(session, booking)
 
 
-@router.post("/{booking_id}/courier/resend", response_model=CourierCodeOut)
+@router.post("/{booking_id}/courier/resend", status_code=202)
 async def resend_courier_code(
     booking_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
     client: Client = Depends(require_client),
-) -> CourierCodeOut:
+) -> Response:
     booking = await _own_booking(session, client, booking_id)
     if booking.depositor != Depositor.COURIER or not booking.courier_phone:
         # Nothing to resend, and issuing a courier PIN for a booking nobody is
@@ -158,9 +159,16 @@ async def resend_courier_code(
                        "The parcel has already been deposited.", 409)
 
     code = reissue_code(booking, CodePurpose.COURIER)
+    numbers = await cell_numbers(session, [booking.cell_id])
+    await notify(
+        session, client_id=None, phone=booking.courier_phone,
+        kind=NotificationKind.COURIER_CODE, language=client.language,
+        channel=NotificationChannel.SMS, booking_id=booking.id,
+        code=code, cell_number=numbers.get(booking.cell_id, 0),
+    )
     await service.record_event(session, booking, booking.status,
                                "PIN курьера отправлен повторно")
     await session.commit()
-    # Delivering it by SMS is the notify module's job, which arrives with the
-    # provider in Plan 2b. Returning it here keeps the flow testable meanwhile.
-    return CourierCodeOut(courier_code=code)
+    # 202 and no body: the code goes to the courier's phone and never back
+    # through the sender's screen, which is the whole point of a courier PIN.
+    return Response(status_code=status.HTTP_202_ACCEPTED)
