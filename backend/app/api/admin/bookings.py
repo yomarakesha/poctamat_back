@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -9,13 +10,12 @@ from app.core.db import get_session
 from app.core.deps import require_permission
 from app.core.errors import AppError, ErrorCode
 from app.core.pagination import PageParams, page_params, paginate_page
-from app.core.types import utc_isoformat
 from app.modules.audit.models import Source
 from app.modules.audit.service import record
 from app.modules.booking import service
 from app.modules.booking.models import Booking, BookingStatus
-from app.modules.booking.schemas import BookingOut, BookingPage
-from app.modules.catalog.models import Cell
+from app.modules.booking.schemas import BookingOut, BookingPage, booking_out
+from app.modules.catalog.service import cell_numbers
 from app.modules.identity.models import AdminUser
 
 router = APIRouter(prefix="/admin/bookings", tags=["admin-bookings"])
@@ -25,28 +25,17 @@ class AdminCancelRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
-async def _out(session: AsyncSession, booking: Booking) -> dict:
-    cell = await session.get(Cell, booking.cell_id)
-    return {
-        "id": booking.id, "status": booking.status,
-        "postamat_id": booking.postamat_id,
-        "cell_number": cell.number if cell else 0,
-        "cell_type_id": booking.cell_type_id,
-        "duration_hours": booking.duration_hours,
-        "amount_minor": booking.amount_minor, "currency": booking.currency,
-        "recipient_phone": booking.recipient_phone,
-        "recipient_name": booking.recipient_name, "depositor": booking.depositor,
-        "hold_expires_at": (
-            utc_isoformat(booking.hold_expires_at) if booking.hold_expires_at else None
-        ),
-        "expires_at": utc_isoformat(booking.expires_at) if booking.expires_at else None,
-        "created_at": utc_isoformat(booking.created_at),
-        "timeline": [
-            {"status": event.status, "message": event.message,
-             "at": utc_isoformat(event.created_at)}
-            for event in booking.events
-        ],
-    }
+async def _out(session: AsyncSession, booking: Booking) -> BookingOut:
+    numbers = await cell_numbers(session, [booking.cell_id])
+    return booking_out(booking, numbers.get(booking.cell_id, 0))
+
+
+async def _out_many(
+    session: AsyncSession, bookings: Sequence[Booking]
+) -> list[BookingOut]:
+    # One query for every door number on the page, not one per booking.
+    numbers = await cell_numbers(session, [row.cell_id for row in bookings])
+    return [booking_out(row, numbers.get(row.cell_id, 0)) for row in bookings]
 
 
 async def _load(session: AsyncSession, booking_id: uuid.UUID) -> Booking:
@@ -74,7 +63,7 @@ async def list_bookings(
         stmt = stmt.where(Booking.client_id == client_id)
     rows, meta = await paginate_page(session, stmt, params)
     return BookingPage(
-        items=[BookingOut(**await _out(session, row)) for row in rows], pagination=meta
+        items=await _out_many(session, rows), pagination=meta
     )
 
 
@@ -84,7 +73,7 @@ async def get_booking(
     session: AsyncSession = Depends(get_session),
     _: AdminUser = Depends(require_permission("bookings.read")),
 ) -> BookingOut:
-    return BookingOut(**await _out(session, await _load(session, booking_id)))
+    return await _out(session, await _load(session, booking_id))
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingOut)
@@ -103,4 +92,4 @@ async def cancel_booking(
                  postamat_id=booking.postamat_id, cell_id=booking.cell_id,
                  details={"booking_id": str(booking.id)})
     await session.commit()
-    return BookingOut(**await _out(session, booking))
+    return await _out(session, booking)

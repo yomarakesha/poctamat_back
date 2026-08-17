@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -9,7 +10,6 @@ from app.core.deps import require_client
 from app.core.errors import AppError, ErrorCode
 from app.core.idempotency import require_idempotency_key
 from app.core.pagination import PageParams, page_params, paginate_page
-from app.core.types import utc_isoformat
 from app.modules.booking import service
 from app.modules.booking.codes import reissue_code
 from app.modules.booking.models import (
@@ -26,37 +26,26 @@ from app.modules.booking.schemas import (
     BookingPage,
     CancelRequest,
     CourierCodeOut,
+    booking_out,
 )
-from app.modules.catalog.models import Cell, Postamat, PostamatStatus, Tariff
+from app.modules.catalog.models import Postamat, PostamatStatus, Tariff
+from app.modules.catalog.service import cell_numbers
 from app.modules.identity.models import Client
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 
-async def _out(session: AsyncSession, booking: Booking) -> dict:
-    cell = await session.get(Cell, booking.cell_id)
-    return {
-        "id": booking.id, "status": booking.status,
-        "postamat_id": booking.postamat_id,
-        "cell_number": cell.number if cell else 0,
-        "cell_type_id": booking.cell_type_id,
-        "duration_hours": booking.duration_hours,
-        "amount_minor": booking.amount_minor, "currency": booking.currency,
-        "recipient_phone": booking.recipient_phone,
-        "recipient_name": booking.recipient_name, "depositor": booking.depositor,
-        "hold_expires_at": (
-            utc_isoformat(booking.hold_expires_at) if booking.hold_expires_at else None
-        ),
-        "expires_at": (
-            utc_isoformat(booking.expires_at) if booking.expires_at else None
-        ),
-        "created_at": utc_isoformat(booking.created_at),
-        "timeline": [
-            {"status": event.status, "message": event.message,
-             "at": utc_isoformat(event.created_at)}
-            for event in booking.events
-        ],
-    }
+async def _out(session: AsyncSession, booking: Booking) -> BookingOut:
+    numbers = await cell_numbers(session, [booking.cell_id])
+    return booking_out(booking, numbers.get(booking.cell_id, 0))
+
+
+async def _out_many(
+    session: AsyncSession, bookings: Sequence[Booking]
+) -> list[BookingOut]:
+    # One query for every door number on the page, not one per booking.
+    numbers = await cell_numbers(session, [row.cell_id for row in bookings])
+    return [booking_out(row, numbers.get(row.cell_id, 0)) for row in bookings]
 
 
 async def _own_booking(
@@ -106,7 +95,7 @@ async def create_booking(
         recipient_phone=payload.recipient_phone, recipient_name=payload.recipient_name,
         depositor=payload.depositor, courier_phone=payload.courier_phone,
     )
-    return BookingCreated(**await _out(session, booking), codes=codes)
+    return BookingCreated(**(await _out(session, booking)).model_dump(), codes=codes)
 
 
 @router.get("", response_model=BookingPage)
@@ -124,7 +113,7 @@ async def list_bookings(
         stmt = stmt.where(Booking.status.in_(tuple(CELL_HELD_STATUSES)))
     rows, meta = await paginate_page(session, stmt, params)
     return BookingPage(
-        items=[BookingOut(**await _out(session, row)) for row in rows], pagination=meta
+        items=await _out_many(session, rows), pagination=meta
     )
 
 
@@ -135,7 +124,7 @@ async def get_booking(
     client: Client = Depends(require_client),
 ) -> BookingOut:
     booking = await _own_booking(session, client, booking_id)
-    return BookingOut(**await _out(session, booking))
+    return await _out(session, booking)
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingOut)
@@ -148,7 +137,7 @@ async def cancel_booking(
     booking = await _own_booking(session, client, booking_id)
     await service.cancel(session, booking, reason=payload.reason, actor="client")
     await session.commit()
-    return BookingOut(**await _out(session, booking))
+    return await _out(session, booking)
 
 
 @router.post("/{booking_id}/courier/resend", response_model=CourierCodeOut)

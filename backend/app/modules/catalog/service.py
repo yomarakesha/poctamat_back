@@ -1,5 +1,6 @@
 import uuid
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -91,6 +92,22 @@ async def free_cell_ids(
     """
     stmt = _usable_cells(postamat_id).where(Cell.cell_type_id == cell_type_id)
     return [cell.id for cell in await session.scalars(stmt) if cell.id not in taken]
+
+
+async def cell_numbers(
+    session: AsyncSession, cell_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Door numbers for a set of cells, in one query.
+
+    Callers rendering a page of bookings need the number printed on each door;
+    fetching them one at a time turns a list of twenty into twenty round trips.
+    """
+    if not cell_ids:
+        return {}
+    rows = await session.execute(
+        select(Cell.id, Cell.number).where(Cell.id.in_(list(cell_ids)))
+    )
+    return {cell_id: number for cell_id, number in rows}
 
 
 def storage_expiry(
