@@ -150,6 +150,27 @@ def postamat_out(postamat: Postamat) -> PostamatOut:
     )
 
 
+class PriceOut(BaseModel):
+    duration_hours: int
+    amount_minor: int
+    currency: str
+
+
+class AvailabilityItem(BaseModel):
+    cell_type_id: uuid.UUID
+    code: str
+    name: str
+    width_cm: int
+    height_cm: int
+    depth_cm: int
+    free: int
+    prices: list[PriceOut]
+
+
+class AvailabilityOut(BaseModel):
+    items: list[AvailabilityItem]
+
+
 def postamat_public_out(postamat: Postamat, moment: datetime) -> PostamatPublicOut:
     opening = next_opening_after(postamat, moment)
     return PostamatPublicOut(
