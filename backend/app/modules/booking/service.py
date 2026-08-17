@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -16,7 +16,7 @@ from app.modules.booking.models import (
     CodePurpose,
     Depositor,
 )
-from app.modules.catalog.service import free_cell_ids
+from app.modules.catalog.service import free_cell_ids, storage_expiry
 
 # Written as data rather than as if-branches so the whole machine can be read at
 # once and tested exhaustively. Payment moves pending_payment -> paid (Plan 2b);
@@ -61,6 +61,13 @@ async def record_event(
     session: AsyncSession, booking: Booking, status: BookingStatus,
     message: str, details: dict | None = None,
 ) -> BookingEvent:
+    state = inspect(booking)
+    # Appending to an unloaded collection makes SQLAlchemy load it first, and a
+    # lazy load inside async code raises MissingGreenlet instead of loading. The
+    # collection is loaded explicitly here so the response also sees the event
+    # that is being written, not a timeline one entry out of date.
+    if state.persistent and "events" in state.unloaded:
+        await session.refresh(booking, ["events"])
     event = BookingEvent(status=status, message=message, details=details)
     booking.events.append(event)
     return event
@@ -132,3 +139,54 @@ async def create_booking(
         await session.flush()
 
     return booking, plaintext
+
+
+async def _move(
+    session: AsyncSession, booking: Booking, target: BookingStatus, message: str,
+    details: dict | None = None,
+) -> Booking:
+    assert_transition(booking.status, target)
+    booking.status = target
+    await record_event(session, booking, target, message, details)
+    return booking
+
+
+async def mark_paid(session: AsyncSession, booking: Booking) -> Booking:
+    """Settle the booking and put it straight into awaiting_deposit.
+
+    `paid` is a state for the ledger, not somewhere a booking waits: the
+    customer's next act is to deposit, so both transitions run together and the
+    timeline shows each of them.
+    """
+    await _move(session, booking, BookingStatus.PAID, "Оплачено")
+    booking.paid_at = utcnow()
+    # The hold protected an unpaid cell. Payment replaces it: from here the
+    # booking itself holds the cell, and the hold worker must leave it alone.
+    booking.hold_expires_at = None
+    return await _move(session, booking, BookingStatus.AWAITING_DEPOSIT,
+                       "Ожидает отправителя")
+
+
+async def mark_deposited(
+    session: AsyncSession, booking: Booking, postamat, moment: datetime | None = None,
+) -> Booking:
+    at = moment or utcnow()
+    booking.deposited_at = at
+    booking.expires_at = storage_expiry(postamat, at, booking.duration_hours)
+    return await _move(session, booking, BookingStatus.AWAITING_PICKUP,
+                       "Посылка в ячейке")
+
+
+async def mark_collected(
+    session: AsyncSession, booking: Booking, moment: datetime | None = None
+) -> Booking:
+    booking.collected_at = moment or utcnow()
+    return await _move(session, booking, BookingStatus.COMPLETED, "Получено")
+
+
+async def cancel(
+    session: AsyncSession, booking: Booking, reason: str, actor: str | None = None
+) -> Booking:
+    booking.cancelled_reason = reason
+    return await _move(session, booking, BookingStatus.CANCELLED, "Отменено",
+                       details={"reason": reason, "actor": actor})
