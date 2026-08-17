@@ -2,7 +2,15 @@ import uuid
 from datetime import datetime, time
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Time
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Time,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, Timestamped, UUIDPrimaryKey
@@ -78,6 +86,29 @@ class PostamatSchedule(UUIDPrimaryKey, Timestamped, Base):
     closes_at: Mapped[time] = mapped_column(Time)
 
     postamat: Mapped[Postamat] = relationship(back_populates="schedule")
+
+
+class Cell(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "cells"
+    __table_args__ = (UniqueConstraint("postamat_id", "number", name="uq_cell_number"),)
+
+    postamat_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("postamats.id"), index=True
+    )
+    cell_type_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cell_types.id"), index=True
+    )
+    # The label on the door. `board` and `output` are the lock-board address,
+    # which is a separate fact: on the pilot cabinet the two happen to line up,
+    # and nothing may rely on that.
+    number: Mapped[int] = mapped_column(Integer)
+    row: Mapped[int | None] = mapped_column(Integer)
+    col: Mapped[int | None] = mapped_column(Integer)
+    board: Mapped[int] = mapped_column(Integer)
+    output: Mapped[int] = mapped_column(Integer)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_maintenance: Mapped[bool] = mapped_column(Boolean, default=False)
+    blocked_reason: Mapped[str | None] = mapped_column(String(500))
 
 
 class Device(UUIDPrimaryKey, Timestamped, Base):
