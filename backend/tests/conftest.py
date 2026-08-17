@@ -61,6 +61,17 @@ async def schema(test_engine):
 
 
 @pytest.fixture(autouse=True)
+def reset_sms():
+    # Rebuilt per test so one test's outbox is never another's, and so a stray
+    # SMS_PROVIDER in the environment cannot leave a real gateway cached.
+    from app.modules.notify.sms import reset_sms_provider
+
+    reset_sms_provider()
+    yield
+    reset_sms_provider()
+
+
+@pytest.fixture(autouse=True)
 def reset_kvstore():
     from app.core.kvstore import get_kvstore
 
