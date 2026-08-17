@@ -95,6 +95,7 @@ async def admin_user(session):
         "postamats.read", "postamats.write", "cells.read", "cells.write",
         "tariffs.read", "tariffs.write", "roles.read",
         "bookings.read", "bookings.write",
+        "custody.read", "custody.write",
     ])
     session.add(role)
     await session.flush()
