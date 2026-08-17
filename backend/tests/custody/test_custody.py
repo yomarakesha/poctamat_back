@@ -17,7 +17,7 @@ async def _overdue_parcel(session, postamat, cell_type, number=1):
     booking = Booking(
         client_id=uuid.uuid4(), postamat_id=postamat.id, cell_id=cell.id,
         cell_type_id=cell_type.id, duration_hours=24, amount_minor=1800,
-        status=BookingStatus.OVERDUE, recipient_phone="+99365000001",
+        status=BookingStatus.TO_REMOVE, recipient_phone="+99365000001",
         expires_at=utcnow() - timedelta(hours=30),
         remove_after=utcnow() - timedelta(hours=1),
     )
@@ -53,10 +53,10 @@ async def test_an_act_without_a_description_is_refused(
                                  headers={"Authorization": f"Bearer {admin_token}"},
                                  json={"booking_id": str(booking.id), "description": ""})
     assert response.status_code == 422
-    assert booking.status == BookingStatus.OVERDUE
+    assert booking.status == BookingStatus.TO_REMOVE
 
 
-async def test_a_parcel_that_is_not_overdue_cannot_be_removed(
+async def test_a_parcel_that_is_not_flagged_for_removal_cannot_be_taken_out(
     client, session, admin_token, cell_type, postamat
 ):
     booking, _ = await _overdue_parcel(session, postamat, cell_type)

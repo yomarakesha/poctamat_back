@@ -38,6 +38,10 @@ class BookingCreate(BaseModel):
 
 class TimelineEntry(BaseModel):
     status: BookingStatus
+    # The contract's checklist vocabulary: booked, paid, parcel_deposited,
+    # pickup_code_sent, collected, expired, cancelled. Null for transitions the
+    # checklist does not draw.
+    step: str | None
     message: str
     at: str
 
@@ -90,8 +94,8 @@ def booking_out(booking, cell_number: int) -> BookingOut:
         expires_at=utc_isoformat(booking.expires_at) if booking.expires_at else None,
         created_at=utc_isoformat(booking.created_at),
         timeline=[
-            TimelineEntry(status=event.status, message=event.message,
-                          at=utc_isoformat(event.created_at))
+            TimelineEntry(status=event.status, step=event.step,
+                          message=event.message, at=utc_isoformat(event.created_at))
             for event in booking.events
         ],
     )

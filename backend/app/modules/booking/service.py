@@ -23,12 +23,14 @@ from app.modules.catalog.service import free_cell_ids, storage_expiry
 # once and tested exhaustively. Payment moves pending_payment -> paid (Plan 2b);
 # the kiosk moves awaiting_deposit -> awaiting_pickup -> completed (Plan 3).
 ALLOWED_TRANSITIONS: dict[BookingStatus, frozenset[BookingStatus]] = {
-    BookingStatus.PENDING_PAYMENT: frozenset(
-        {BookingStatus.PAID, BookingStatus.CANCELLED}
-    ),
-    BookingStatus.PAID: frozenset(
-        {BookingStatus.AWAITING_DEPOSIT, BookingStatus.CANCELLED}
-    ),
+    # Payment goes straight to awaiting_deposit. There is no `paid` state: the
+    # front-end contract does not define one, and a generated client throws on a
+    # status it has never heard of. Payment is a timeline step instead.
+    BookingStatus.PENDING_PAYMENT: frozenset({
+        BookingStatus.AWAITING_DEPOSIT,
+        BookingStatus.CANCELLED,
+        BookingStatus.PAYMENT_FAILED,
+    }),
     BookingStatus.AWAITING_DEPOSIT: frozenset(
         {BookingStatus.AWAITING_PICKUP, BookingStatus.CANCELLED}
     ),
@@ -42,11 +44,19 @@ ALLOWED_TRANSITIONS: dict[BookingStatus, frozenset[BookingStatus]] = {
     # until staff physically remove it.
     BookingStatus.EXPIRED: frozenset({BookingStatus.COMPLETED, BookingStatus.GRACE}),
     BookingStatus.GRACE: frozenset({BookingStatus.COMPLETED, BookingStatus.OVERDUE}),
-    BookingStatus.OVERDUE: frozenset({BookingStatus.COMPLETED, BookingStatus.REMOVED}),
+    BookingStatus.OVERDUE: frozenset(
+        {BookingStatus.COMPLETED, BookingStatus.TO_REMOVE}
+    ),
+    # Staff have been told to go and pull it; the queue tells this apart from
+    # `overdue`, which is merely late.
+    BookingStatus.TO_REMOVE: frozenset(
+        {BookingStatus.COMPLETED, BookingStatus.REMOVED}
+    ),
     BookingStatus.REMOVED: frozenset({BookingStatus.CLOSED}),
     BookingStatus.CLOSED: frozenset(),
     BookingStatus.COMPLETED: frozenset(),
     BookingStatus.CANCELLED: frozenset(),
+    BookingStatus.PAYMENT_FAILED: frozenset(),
 }
 
 
@@ -75,7 +85,7 @@ def as_utc(value: datetime) -> datetime:
 
 async def record_event(
     session: AsyncSession, booking: Booking, status: BookingStatus,
-    message: str, details: dict | None = None,
+    message: str, details: dict | None = None, step: str | None = None,
 ) -> BookingEvent:
     state = inspect(booking)
     # Appending to an unloaded collection makes SQLAlchemy load it first, and a
@@ -85,7 +95,7 @@ async def record_event(
     if state.persistent and "events" in state.unloaded:
         await session.refresh(booking, ["events"])
     event = BookingEvent(seq=len(booking.events), status=status, message=message,
-                         details=details)
+                         details=details, step=step)
     booking.events.append(event)
     return event
 
@@ -163,7 +173,7 @@ async def create_booking(
                 plaintext = issue_codes(booking)
                 session.add(booking)
                 await record_event(session, booking, BookingStatus.PENDING_PAYMENT,
-                                   "Забронировано")
+                                   "Забронировано", step="booked")
                 await session.flush()
     except IntegrityError:
         # uq_active_booking_per_cell refused the row, so the cell was held by a
@@ -183,11 +193,11 @@ async def create_booking(
 
 async def _move(
     session: AsyncSession, booking: Booking, target: BookingStatus, message: str,
-    details: dict | None = None,
+    details: dict | None = None, step: str | None = None,
 ) -> Booking:
     assert_transition(booking.status, target)
     booking.status = target
-    await record_event(session, booking, target, message, details)
+    await record_event(session, booking, target, message, details, step=step)
     return booking
 
 
@@ -198,11 +208,15 @@ async def mark_paid(session: AsyncSession, booking: Booking) -> Booking:
     customer's next act is to deposit, so both transitions run together and the
     timeline shows each of them.
     """
-    await _move(session, booking, BookingStatus.PAID, "Оплачено")
     booking.paid_at = utcnow()
     # The hold protected an unpaid cell. Payment replaces it: from here the
     # booking itself holds the cell, and the hold worker must leave it alone.
     booking.hold_expires_at = None
+    # Payment is a checklist step, not a state to sit in: the contract's status
+    # set goes straight from pending_payment to awaiting_deposit, so the step is
+    # recorded and the status moves once.
+    await record_event(session, booking, BookingStatus.PENDING_PAYMENT, "Оплачено",
+                       step="paid")
     return await _move(session, booking, BookingStatus.AWAITING_DEPOSIT,
                        "Ожидает отправителя")
 
@@ -214,22 +228,41 @@ async def mark_deposited(
     booking.deposited_at = at
     booking.expires_at = storage_expiry(postamat, at, booking.duration_hours)
     return await _move(session, booking, BookingStatus.AWAITING_PICKUP,
-                       "Посылка в ячейке")
+                       "Посылка в ячейке", step="parcel_deposited")
 
 
 async def mark_collected(
     session: AsyncSession, booking: Booking, moment: datetime | None = None
 ) -> Booking:
     booking.collected_at = moment or utcnow()
-    return await _move(session, booking, BookingStatus.COMPLETED, "Получено")
+    return await _move(session, booking, BookingStatus.COMPLETED, "Получено",
+                       step="collected")
 
 
 async def expire(session: AsyncSession, booking: Booking) -> Booking:
-    return await _move(session, booking, BookingStatus.EXPIRED, "Срок хранения истёк")
+    return await _move(session, booking, BookingStatus.EXPIRED, "Срок хранения истёк",
+                       step="expired")
 
 
 async def to_grace(session: AsyncSession, booking: Booking) -> Booking:
     return await _move(session, booking, BookingStatus.GRACE, "Льготный период")
+
+
+async def payment_failed(
+    session: AsyncSession, booking: Booking, reason: str | None = None
+) -> Booking:
+    """The hold died without a successful payment.
+
+    Kept apart from a plain cancellation because the app draws a different
+    screen for each: one is the customer's decision, the other is the bank's.
+    """
+    booking.cancelled_reason = reason or "Оплата не прошла"
+    return await _move(session, booking, BookingStatus.PAYMENT_FAILED,
+                       "Оплата не прошла", details={"reason": reason})
+
+
+async def to_remove(session: AsyncSession, booking: Booking) -> Booking:
+    return await _move(session, booking, BookingStatus.TO_REMOVE, "К изъятию")
 
 
 async def to_overdue(session: AsyncSession, booking: Booking) -> Booking:
@@ -254,4 +287,4 @@ async def cancel(
 ) -> Booking:
     booking.cancelled_reason = reason
     return await _move(session, booking, BookingStatus.CANCELLED, "Отменено",
-                       details={"reason": reason, "actor": actor})
+                       details={"reason": reason, "actor": actor}, step="cancelled")

@@ -153,7 +153,7 @@ async def resend_courier_code(
         # couriering would put a second live code in the sender's own hands.
         raise AppError(ErrorCode.BOOKING_INVALID_STATE,
                        "This booking has no courier.", 409)
-    if booking.status not in {BookingStatus.PENDING_PAYMENT, BookingStatus.PAID,
+    if booking.status not in {BookingStatus.PENDING_PAYMENT,
                               BookingStatus.AWAITING_DEPOSIT}:
         raise AppError(ErrorCode.BOOKING_INVALID_STATE,
                        "The parcel has already been deposited.", 409)

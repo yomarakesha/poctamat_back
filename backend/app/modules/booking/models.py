@@ -10,7 +10,6 @@ from app.core.db import Base, Timestamped, UUIDPrimaryKey, utcnow
 
 class BookingStatus(StrEnum):
     PENDING_PAYMENT = "pending_payment"
-    PAID = "paid"
     AWAITING_DEPOSIT = "awaiting_deposit"
     AWAITING_PICKUP = "awaiting_pickup"
     COMPLETED = "completed"
@@ -20,8 +19,12 @@ class BookingStatus(StrEnum):
     EXPIRED = "expired"
     GRACE = "grace"
     OVERDUE = "overdue"
+    TO_REMOVE = "to_remove"
     REMOVED = "removed"
     CLOSED = "closed"
+    # A hold that died without a successful payment, kept apart from a plain
+    # cancellation because the app shows a different screen for each.
+    PAYMENT_FAILED = "payment_failed"
 
 
 # The statuses during which the cell belongs to this booking and to no other.
@@ -30,12 +33,12 @@ class BookingStatus(StrEnum):
 # somebody's parcel is still inside it.
 CELL_HELD_STATUSES = frozenset({
     BookingStatus.PENDING_PAYMENT,
-    BookingStatus.PAID,
     BookingStatus.AWAITING_DEPOSIT,
     BookingStatus.AWAITING_PICKUP,
     BookingStatus.EXPIRED,
     BookingStatus.GRACE,
     BookingStatus.OVERDUE,
+    BookingStatus.TO_REMOVE,
 })
 
 _HELD_SQL = ", ".join(f"'{status.value}'" for status in sorted(CELL_HELD_STATUSES))
@@ -123,6 +126,10 @@ class BookingEvent(UUIDPrimaryKey, Timestamped, Base):
     # transitions written together — payment writes two — would come back in
     # arbitrary order and show the customer a history that never happened.
     seq: Mapped[int] = mapped_column(Integer, default=0)
+    # The checklist step this event is, in the front-end contract's vocabulary:
+    # booked, paid, parcel_deposited, pickup_code_sent, collected, expired,
+    # cancelled. Null for transitions the checklist does not draw.
+    step: Mapped[str | None] = mapped_column(String(24))
     # The timeline the app renders. One row per transition, so the screen never
     # has to reconstruct history from a single status column.
     status: Mapped[BookingStatus] = mapped_column(String(24))

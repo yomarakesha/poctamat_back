@@ -67,9 +67,9 @@ async def settle(session: AsyncSession, event: WebhookEvent) -> Payment:
         payment.status = PaymentStatus.FAILED
         payment.failure_reason = event.reason
         if booking is not None and booking.status == BookingStatus.PENDING_PAYMENT:
-            await booking_service.cancel(
-                session, booking, reason="Оплата не прошла", actor="system"
-            )
+            # payment_failed, not cancelled: the bank refused, the customer did
+            # not change their mind, and the app shows a different screen.
+            await booking_service.payment_failed(session, booking, event.reason)
         await session.commit()
         return payment
 

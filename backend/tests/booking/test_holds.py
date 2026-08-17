@@ -37,13 +37,14 @@ async def test_a_live_hold_is_left_alone(session):
 
 async def test_a_paid_booking_is_never_released(session):
     # mark_paid clears hold_expires_at, but a row written before that, or by a
-    # future code path, must still be safe: paid bookings are out of scope.
-    paid = _booking(BookingStatus.PAID, -60)
+    # future code path, must still be safe: a booking that is past payment is
+    # out of this worker's scope.
+    paid = _booking(BookingStatus.AWAITING_DEPOSIT, -60)
     session.add(paid)
     await session.commit()
 
     assert await release_expired_holds(session) == []
-    assert paid.status == BookingStatus.PAID
+    assert paid.status == BookingStatus.AWAITING_DEPOSIT
 
 
 async def test_the_timeline_records_the_cancellation(session):

@@ -11,9 +11,8 @@ from app.modules.booking.service import (
 
 def test_the_happy_path_is_walkable():
     path = [
-        BookingStatus.PENDING_PAYMENT, BookingStatus.PAID,
-        BookingStatus.AWAITING_DEPOSIT, BookingStatus.AWAITING_PICKUP,
-        BookingStatus.COMPLETED,
+        BookingStatus.PENDING_PAYMENT, BookingStatus.AWAITING_DEPOSIT,
+        BookingStatus.AWAITING_PICKUP, BookingStatus.COMPLETED,
     ]
     for current, target in zip(path, path[1:]):
         assert can_transition(current, target) is True
@@ -31,7 +30,23 @@ def test_a_deposited_parcel_can_no_longer_be_cancelled():
 
 
 def test_no_transition_skips_the_deposit():
-    assert can_transition(BookingStatus.PAID, BookingStatus.COMPLETED) is False
+    assert can_transition(
+        BookingStatus.AWAITING_DEPOSIT, BookingStatus.COMPLETED
+    ) is False
+
+
+def test_there_is_no_paid_status():
+    # The front-end contract's status set goes straight from pending_payment to
+    # awaiting_deposit, and a generated client throws on a value it has never
+    # heard of. Payment is a timeline step instead.
+    assert not hasattr(BookingStatus, "PAID")
+
+
+def test_a_failed_payment_is_its_own_dead_end():
+    assert can_transition(
+        BookingStatus.PENDING_PAYMENT, BookingStatus.PAYMENT_FAILED
+    ) is True
+    assert ALLOWED_TRANSITIONS[BookingStatus.PAYMENT_FAILED] == frozenset()
 
 
 def test_every_status_is_reachable_and_every_target_is_a_known_status():

@@ -90,7 +90,8 @@ async def test_a_collected_parcel_is_never_escalated(session, postamat):
     booking = await _parcel(session, postamat, now - timedelta(hours=10),
                             status=BookingStatus.COMPLETED)
     counts = await run_escalation(session, now=now)
-    assert counts == {"reminded": 0, "expired": 0, "grace": 0, "overdue": 0}
+    assert counts == {"reminded": 0, "expired": 0, "grace": 0, "overdue": 0,
+                      "to_remove": 0}
     assert booking.status == BookingStatus.COMPLETED
 
 

@@ -28,6 +28,7 @@ WATCHED = (
     BookingStatus.AWAITING_PICKUP,
     BookingStatus.EXPIRED,
     BookingStatus.GRACE,
+    BookingStatus.OVERDUE,
 )
 
 
@@ -58,7 +59,7 @@ async def run_escalation(
 ) -> dict[str, int]:
     settings = get_settings()
     moment = now or utcnow()
-    counts = {"reminded": 0, "expired": 0, "grace": 0, "overdue": 0}
+    counts = {"reminded": 0, "expired": 0, "grace": 0, "overdue": 0, "to_remove": 0}
 
     live = list(await session.scalars(
         select(Booking).where(
@@ -129,6 +130,17 @@ async def run_escalation(
                     cell_number=cell_number,
                 )
                 counts["overdue"] += 1
+
+        elif booking.status == BookingStatus.OVERDUE:
+            # `to_remove` is a status rather than a derived flag because the work
+            # queue has to tell "staff have been told to pull this" apart from
+            # "merely late", and staff act on the first only.
+            remove_after = booking.remove_after
+            if remove_after is not None and moment >= booking_service.as_utc(
+                remove_after
+            ):
+                await booking_service.to_remove(session, booking)
+                counts["to_remove"] += 1
 
     await session.commit()
     return counts

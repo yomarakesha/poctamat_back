@@ -11,6 +11,7 @@ from app.modules.booking.service import (
     mark_removed,
     to_grace,
     to_overdue,
+    to_remove,
 )
 
 
@@ -23,7 +24,8 @@ def _booking(status=BookingStatus.AWAITING_PICKUP) -> Booking:
 
 
 def test_an_overdue_parcel_still_holds_its_cell():
-    for status in (BookingStatus.EXPIRED, BookingStatus.GRACE, BookingStatus.OVERDUE):
+    for status in (BookingStatus.EXPIRED, BookingStatus.GRACE, BookingStatus.OVERDUE,
+                   BookingStatus.TO_REMOVE):
         assert status in CELL_HELD_STATUSES
     # Removal is what frees it, and only once an act exists.
     assert BookingStatus.REMOVED not in CELL_HELD_STATUSES
@@ -42,12 +44,14 @@ async def test_the_escalation_walks_one_stage_at_a_time(session):
     await to_overdue(session, booking)
     assert booking.status == BookingStatus.OVERDUE
     assert booking.remove_after is not None
+    await to_remove(session, booking)
+    assert booking.status == BookingStatus.TO_REMOVE
     await mark_removed(session, booking)
     assert booking.status == BookingStatus.REMOVED
     await close_custody(session, booking)
     assert booking.status == BookingStatus.CLOSED
 
-    assert [event.seq for event in booking.events] == list(range(5))
+    assert [event.seq for event in booking.events] == list(range(6))
 
 
 async def test_a_collected_parcel_cannot_go_overdue(session):

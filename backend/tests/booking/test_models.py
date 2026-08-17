@@ -24,7 +24,7 @@ def test_held_statuses_are_the_ones_that_occupy_a_cell():
 
 async def test_one_active_booking_per_cell_is_enforced_by_the_database(session):
     cell_id = uuid.uuid4()
-    session.add(_booking(cell_id, BookingStatus.PAID))
+    session.add(_booking(cell_id, BookingStatus.AWAITING_DEPOSIT))
     await session.flush()
 
     session.add(_booking(cell_id, BookingStatus.PENDING_PAYMENT))

@@ -60,8 +60,8 @@ async def test_paying_moves_the_booking_and_clears_the_hold(
     detail = await client.get(f"/api/v1/bookings/{booking['id']}", headers=headers)
     assert detail.json()["status"] == BookingStatus.AWAITING_DEPOSIT
     assert detail.json()["hold_expires_at"] is None
-    assert [event["status"] for event in detail.json()["timeline"]] == [
-        "pending_payment", "paid", "awaiting_deposit",
+    assert [event["step"] for event in detail.json()["timeline"]] == [
+        "booked", "paid", None,
     ]
 
 
@@ -105,7 +105,9 @@ async def test_a_declined_payment_releases_the_cell(
                       headers=hook_headers)
 
     detail = await client.get(f"/api/v1/bookings/{booking['id']}", headers=headers)
-    assert detail.json()["status"] == BookingStatus.CANCELLED
+    # payment_failed, not cancelled: the bank refused, the customer did not
+    # change their mind, and the app draws a different screen for each.
+    assert detail.json()["status"] == BookingStatus.PAYMENT_FAILED
 
     availability = await client.get(f"/api/v1/postamats/{postamat.id}/availability")
     assert availability.json()["items"][0]["free"] == 1

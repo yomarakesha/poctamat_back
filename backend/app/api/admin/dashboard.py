@@ -61,14 +61,19 @@ async def attention(
         .where(Booking.status == BookingStatus.OVERDUE)
     ) or 0
     to_remove_total = await session.scalar(
-        select(func.count()).select_from(Booking).where(
-            Booking.status == BookingStatus.OVERDUE,
-            Booking.remove_after.is_not(None),
-            Booking.remove_after <= moment,
-        )
+        select(func.count()).select_from(Booking)
+        .where(Booking.status == BookingStatus.TO_REMOVE)
     ) or 0
+    to_remove_rows = list(await session.scalars(
+        select(Booking)
+        .where(Booking.status == BookingStatus.TO_REMOVE)
+        .order_by(Booking.remove_after)
+        .limit(PREVIEW)
+    ))
 
-    numbers = await cell_numbers(session, [row.cell_id for row in overdue_rows])
+    numbers = await cell_numbers(
+        session, [row.cell_id for row in overdue_rows + to_remove_rows]
+    )
 
     def _item(row: Booking) -> OverdueItem:
         return OverdueItem(
@@ -82,14 +87,9 @@ async def attention(
         )
 
     overdue = [_item(row) for row in overdue_rows]
-    # "Ready to remove" is derived rather than stored as a status: it is the
-    # same parcel, one interval later, and a status for it would be a state the
-    # lifecycle has to be walked through for no reason.
-    ready = [
-        item for item, row in zip(overdue, overdue_rows)
-        if row.remove_after is not None and row.remove_after.replace(tzinfo=None)
-        <= moment.replace(tzinfo=None)
-    ]
+    # Two separate queues, because staff act on the second and only wait on the
+    # first: `overdue` is merely late, `to_remove` is "go and pull it".
+    ready = [_item(row) for row in to_remove_rows]
 
     payment_rows = list(await session.scalars(
         select(AuditEntry)

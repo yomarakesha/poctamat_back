@@ -22,13 +22,13 @@ async def test_the_queue_separates_overdue_from_ready_to_remove(
 ):
     await _booking(session, postamat, BookingStatus.OVERDUE,
                    remove_after=utcnow() + timedelta(hours=10))
-    await _booking(session, postamat, BookingStatus.OVERDUE,
+    await _booking(session, postamat, BookingStatus.TO_REMOVE,
                    remove_after=utcnow() - timedelta(hours=1))
 
     response = await client.get("/api/v1/admin/dashboard/attention",
                                 headers={"Authorization": f"Bearer {admin_token}"})
     assert response.status_code == 200
-    assert response.json()["counts"]["overdue"] == 2
+    assert response.json()["counts"]["overdue"] == 1
     assert response.json()["counts"]["to_remove"] == 1
     assert len(response.json()["to_remove"]) == 1
 

@@ -8,7 +8,10 @@ from app.modules.booking import service as booking_service
 from app.modules.booking.models import Booking, BookingStatus
 from app.modules.custody.models import CustodyHandover, CustodyRecord, CustodyStatus
 
-REMOVABLE = frozenset({BookingStatus.OVERDUE})
+# Removal follows the flag, not the mere fact of being late: the worker moves a
+# parcel to `to_remove` when its interval elapses, and that is the queue staff
+# work from.
+REMOVABLE = frozenset({BookingStatus.TO_REMOVE})
 
 
 async def file_removal(
@@ -24,7 +27,7 @@ async def file_removal(
     """
     if booking.status not in REMOVABLE:
         raise AppError(ErrorCode.BOOKING_INVALID_STATE,
-                       "Only an overdue parcel may be removed.", 409,
+                       "Only a parcel flagged for removal may be taken out.", 409,
                        details={"status": str(booking.status)})
 
     record = CustodyRecord(
