@@ -12,6 +12,7 @@ from app.api.mobile import bookings as mobile_bookings
 from app.api.mobile import notifications as mobile_notifications
 from app.api.mobile import payments as mobile_payments
 from app.api.public import catalog as public_catalog
+from app.api.public import media as public_media
 from app.api.public import postamats as public_postamats
 from app.api.webhooks import payments as payment_webhooks
 from app.core.context import RequestContextMiddleware
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_custody.router, prefix=API_PREFIX)
     app.include_router(admin_dashboard.router, prefix=API_PREFIX)
     app.include_router(public_catalog.router, prefix=API_PREFIX)
+    app.include_router(public_media.router, prefix=API_PREFIX)
     app.include_router(public_postamats.router, prefix=API_PREFIX)
     app.include_router(payment_webhooks.router, prefix=API_PREFIX)
     return app

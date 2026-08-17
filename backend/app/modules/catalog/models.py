@@ -73,6 +73,10 @@ class Postamat(UUIDPrimaryKey, Timestamped, Base):
     schedule: Mapped[list["PostamatSchedule"]] = relationship(
         back_populates="postamat", lazy="selectin", cascade="all, delete-orphan"
     )
+    photos: Mapped[list["PostamatPhoto"]] = relationship(
+        back_populates="postamat", lazy="selectin", cascade="all, delete-orphan",
+        order_by="PostamatPhoto.position",
+    )
 
 
 class PostamatSchedule(UUIDPrimaryKey, Timestamped, Base):
@@ -86,6 +90,23 @@ class PostamatSchedule(UUIDPrimaryKey, Timestamped, Base):
     closes_at: Mapped[time] = mapped_column(Time)
 
     postamat: Mapped[Postamat] = relationship(back_populates="schedule")
+
+
+class PostamatPhoto(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "postamat_photos"
+
+    postamat_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("postamats.id"), index=True
+    )
+    # The photograph is of the machine, not of anything inside it: it is how a
+    # customer recognises the postamat in a lobby and how an operator confirms
+    # which one they are looking at.
+    storage_key: Mapped[str] = mapped_column(String(64))
+    content_type: Mapped[str] = mapped_column(String(32))
+    caption: Mapped[str | None] = mapped_column(String(200))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    postamat: Mapped[Postamat] = relationship(back_populates="photos")
 
 
 class Cell(UUIDPrimaryKey, Timestamped, Base):

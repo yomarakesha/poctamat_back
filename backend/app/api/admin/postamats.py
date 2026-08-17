@@ -1,18 +1,36 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.deps import require_permission
+from app.core.config import get_settings
 from app.core.errors import AppError, ErrorCode
+from app.core.storage import ALLOWED_IMAGE_TYPES, get_file_storage
 from app.core.pagination import PageParams, page_params, paginate_page
 from app.modules.audit.models import Source
 from app.modules.audit.service import record
-from app.modules.catalog.models import Postamat, PostamatSchedule, PostamatStatus
+from app.modules.catalog.models import (
+    Postamat,
+    PostamatPhoto,
+    PostamatSchedule,
+    PostamatStatus,
+)
 from app.modules.catalog.schemas import (
+    MEDIA_PREFIX,
     BlockRequest,
+    PhotoOut,
     PostamatIn,
     PostamatOut,
     PostamatPage,
@@ -135,6 +153,69 @@ async def unblock_postamat(
                  actor=admin.login, postamat_id=postamat.id)
     await session.commit()
     return postamat_out(postamat)
+
+
+@router.post("/{postamat_id}/photos", response_model=PhotoOut, status_code=201)
+async def upload_photo(
+    postamat_id: uuid.UUID,
+    file: UploadFile = File(...),
+    caption: str | None = Form(default=None),
+    session: AsyncSession = Depends(get_session),
+    admin: AdminUser = Depends(require_permission("postamats.write")),
+) -> PhotoOut:
+    postamat = await _load(session, postamat_id)
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise AppError(ErrorCode.VALIDATION_FAILED,
+                       "Only PNG, JPEG and WebP images are accepted.", 422,
+                       details={"content_type": file.content_type})
+
+    data = await file.read()
+    if len(data) > get_settings().max_upload_bytes:
+        # 413 rather than 422: the file is not malformed, it is too large, and
+        # the client can act on that difference.
+        raise AppError(ErrorCode.VALIDATION_FAILED, "The file is too large.", 413,
+                       details={"max_bytes": get_settings().max_upload_bytes})
+
+    key = get_file_storage().save(data, file.content_type)
+    photo = PostamatPhoto(
+        storage_key=key, content_type=file.content_type, caption=caption,
+        position=len(postamat.photos),
+    )
+    # Appended to the collection rather than added to the session on its own, so
+    # the postamat in memory carries the new photo too — otherwise the very next
+    # read of this object in the same session shows a gallery one photo short.
+    postamat.photos.append(photo)
+    await record(session, event="postamat.photo_added", source=Source.ADMIN,
+                 message=f"Photo added to postamat {postamat.number}",
+                 actor=admin.login, postamat_id=postamat.id)
+    await session.commit()
+    return PhotoOut(id=photo.id, url=f"{MEDIA_PREFIX}/{key}", caption=photo.caption)
+
+
+@router.delete("/{postamat_id}/photos/{photo_id}", status_code=204)
+async def delete_photo(
+    postamat_id: uuid.UUID,
+    photo_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    admin: AdminUser = Depends(require_permission("postamats.write")),
+) -> Response:
+    postamat = await _load(session, postamat_id)
+    photo = next((row for row in postamat.photos if row.id == photo_id), None)
+    if photo is None:
+        raise AppError(ErrorCode.NOT_FOUND, "Photo not found.", 404)
+
+    key = photo.storage_key
+    # Removed from the collection, not deleted on its own: delete-orphan turns
+    # this into the DELETE, and the postamat in memory stops carrying a photo
+    # that no longer exists.
+    postamat.photos.remove(photo)
+    await record(session, event="postamat.photo_removed", source=Source.ADMIN,
+                 message="Photo removed", actor=admin.login, postamat_id=postamat_id)
+    await session.commit()
+    # The file goes after the row, not before: a delete that fails halfway
+    # should leave an orphan file rather than a row pointing at nothing.
+    get_file_storage().delete(key)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/{postamat_id}/schedule", response_model=PostamatOut)

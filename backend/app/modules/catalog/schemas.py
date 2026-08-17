@@ -33,6 +33,23 @@ def localized(row, language: str) -> str:
     return getattr(row, f"name_{language}", row.name_tk)
 
 
+MEDIA_PREFIX = "/api/v1/media"
+
+
+class PhotoOut(BaseModel):
+    id: uuid.UUID
+    url: str
+    caption: str | None
+
+
+def photos_out(postamat: Postamat) -> list["PhotoOut"]:
+    return [
+        PhotoOut(id=photo.id, url=f"{MEDIA_PREFIX}/{photo.storage_key}",
+                 caption=photo.caption)
+        for photo in postamat.photos
+    ]
+
+
 class ScheduleSlotIn(BaseModel):
     weekday: int = Field(ge=0, le=6)  # 0 = Monday
     opens_at: time
@@ -100,6 +117,7 @@ class PostamatOut(BaseModel):
     status: PostamatStatus
     round_the_clock: bool
     schedule: list[ScheduleSlotOut]
+    photos: list[PhotoOut]
     # A string rather than a datetime: Pydantic renders an aware datetime with
     # a +00:00 offset, and the wire format is fixed at trailing Z.
     created_at: str
@@ -121,6 +139,7 @@ class PostamatPublicOut(BaseModel):
     status: PostamatStatus
     round_the_clock: bool
     schedule: list[ScheduleSlotOut]
+    photos: list[PhotoOut]
     is_open_now: bool
     # None when the machine has no schedule at all, which reads as "call us"
     # rather than a time the client can wait for.
@@ -146,7 +165,8 @@ def postamat_out(postamat: Postamat) -> PostamatOut:
         city_id=postamat.city_id, address=postamat.address,
         latitude=postamat.latitude, longitude=postamat.longitude,
         status=postamat.status, round_the_clock=postamat.round_the_clock,
-        schedule=_slots(postamat), created_at=utc_isoformat(postamat.created_at),
+        schedule=_slots(postamat), photos=photos_out(postamat),
+        created_at=utc_isoformat(postamat.created_at),
     )
 
 
@@ -178,7 +198,7 @@ def postamat_public_out(postamat: Postamat, moment: datetime) -> PostamatPublicO
         city_id=postamat.city_id, address=postamat.address,
         latitude=postamat.latitude, longitude=postamat.longitude,
         status=postamat.status, round_the_clock=postamat.round_the_clock,
-        schedule=_slots(postamat),
+        schedule=_slots(postamat), photos=photos_out(postamat),
         is_open_now=is_open_at(postamat, moment),
         next_opening_at=None if opening is None else utc_isoformat(opening),
     )
