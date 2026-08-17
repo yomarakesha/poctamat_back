@@ -83,6 +83,7 @@ async def admin_user(session):
     role = Role(code="operator", name="Operator", permissions=[
         "postamats.read", "postamats.write", "cells.read", "cells.write",
         "tariffs.read", "tariffs.write", "roles.read",
+        "bookings.read", "bookings.write",
     ])
     session.add(role)
     await session.flush()
