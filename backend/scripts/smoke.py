@@ -68,6 +68,7 @@ def _import_models() -> None:
         "app.modules.audit.models",
         "app.modules.identity.models",
         "app.modules.catalog.models",
+        "app.modules.booking.models",
     ):
         try:
             __import__(module)
@@ -127,6 +128,42 @@ async def call(
     return body
 
 
+async def _seed_fleet(maker) -> dict:
+    """Put one postamat with two small cells and a full tariff matrix in place.
+
+    Written straight through the session rather than through the admin API,
+    because the script has no admin account to log in as — seeding is not what
+    this script is here to exercise.
+    """
+    from app.modules.catalog.models import Cell, CellType, City, Postamat, Tariff
+
+    async with maker() as session:
+        city = City(code="ashgabat", name_tk="Aşgabat", name_ru="Ашхабад",
+                    name_en="Ashgabat")
+        cell_type = CellType(code="small", name_tk="Kiçi", name_ru="Маленький",
+                             name_en="Small", width_cm=20, height_cm=20, depth_cm=40)
+        session.add_all([city, cell_type])
+        await session.flush()
+
+        postamat = Postamat(number="10042", name="ТП #4", city_id=city.id,
+                            address="ул. Ататюрк, 31", round_the_clock=True)
+        session.add(postamat)
+        await session.flush()
+
+        session.add_all([
+            Cell(postamat_id=postamat.id, cell_type_id=cell_type.id, number=n,
+                 board=1, output=n)
+            for n in (1, 2)
+        ])
+        session.add_all([
+            Tariff(city_id=city.id, cell_type_id=cell_type.id,
+                   duration_hours=hours, amount_minor=amount, currency="TMT")
+            for hours, amount in ((12, 1200), (24, 1800), (48, 2600))
+        ])
+        await session.commit()
+        return {"postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id)}
+
+
 async def main() -> int:
     _import_models()
 
@@ -143,6 +180,11 @@ async def main() -> int:
             yield session
 
     app.dependency_overrides[get_session] = override
+
+    try:
+        fleet = await _seed_fleet(maker)
+    except ImportError:
+        fleet = {}
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://smoke") as client:
@@ -243,6 +285,52 @@ async def main() -> int:
             print(f"\n{YELLOW}-- authenticated as a client --{RESET}")
             bearer = {"Authorization": f"Bearer {access}"}
             await call(client, "GET", "/api/v1/me", headers=bearer, expect=None)
+
+        if access and fleet:
+            print(f"\n{YELLOW}-- booking a cell --{RESET}")
+            bearer = {"Authorization": f"Bearer {access}"}
+            postamat_id = fleet["postamat_id"]
+
+            before = await call(
+                client, "GET", f"/api/v1/postamats/{postamat_id}/availability"
+            )
+            if before:
+                print(f"{GREY}     free before booking: "
+                      f"{before['items'][0]['free']}{RESET}")
+
+            created = await call(
+                client, "POST", "/api/v1/bookings", headers=bearer, expect=201,
+                json={
+                    "postamat_id": postamat_id,
+                    "cell_type_id": fleet["cell_type_id"],
+                    "duration_hours": 24,
+                    "recipient_phone": "+99365000001",
+                    "recipient_name": "Получатель",
+                },
+            )
+            if created:
+                # Lengths only. This output gets pasted into chats, and those
+                # five digits open a physical door.
+                lengths = {purpose: len(code)
+                           for purpose, code in created["codes"].items()}
+                print(f"{GREY}     cell {created['cell_number']}, code lengths "
+                      f"{lengths}{RESET}")
+
+                await call(client, "GET", "/api/v1/bookings", headers=bearer)
+                await call(
+                    client, "GET", f"/api/v1/postamats/{postamat_id}/availability"
+                )
+                await call(
+                    client, "POST", f"/api/v1/bookings/{created['id']}/cancel",
+                    headers=bearer, json={"reason": "smoke run"},
+                )
+                after = await call(
+                    client, "GET", f"/api/v1/postamats/{postamat_id}/availability"
+                )
+                if after and before:
+                    # The whole plan in one line: cancelling gives the cell back.
+                    freed = after["items"][0]["free"] == before["items"][0]["free"]
+                    print(f"{GREY}     cell returned to the pool: {freed}{RESET}")
 
     await engine.dispose()
     _db_file.unlink(missing_ok=True)
