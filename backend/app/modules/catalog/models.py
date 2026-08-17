@@ -111,6 +111,23 @@ class Cell(UUIDPrimaryKey, Timestamped, Base):
     blocked_reason: Mapped[str | None] = mapped_column(String(500))
 
 
+class Tariff(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "tariffs"
+    __table_args__ = (
+        UniqueConstraint("city_id", "cell_type_id", "duration_hours", name="uq_tariff"),
+    )
+
+    city_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cities.id"), index=True)
+    cell_type_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cell_types.id"), index=True
+    )
+    duration_hours: Mapped[int] = mapped_column(Integer)
+    # Minor units and an explicit currency, never a float: prices are counted in
+    # tenge, not approximated in binary fractions.
+    amount_minor: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), default="TMT")
+
+
 class Device(UUIDPrimaryKey, Timestamped, Base):
     __tablename__ = "devices"
 
