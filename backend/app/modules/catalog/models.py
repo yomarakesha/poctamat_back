@@ -1,5 +1,9 @@
-from sqlalchemy import Boolean, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+import uuid
+from datetime import datetime, time
+from enum import StrEnum
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Time
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, Timestamped, UUIDPrimaryKey
 
@@ -27,3 +31,65 @@ class CellType(UUIDPrimaryKey, Timestamped, Base):
     height_cm: Mapped[int] = mapped_column(Integer)
     depth_cm: Mapped[int] = mapped_column(Integer)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class PostamatStatus(StrEnum):
+    ACTIVE = "active"
+    MAINTENANCE = "maintenance"
+    BLOCKED = "blocked"
+
+
+class DeviceStatus(StrEnum):
+    ONLINE = "online"
+    OFFLINE = "offline"
+    DEGRADED = "degraded"
+
+
+class Postamat(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "postamats"
+
+    number: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    city_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cities.id"), index=True)
+    address: Mapped[str] = mapped_column(String(500))
+    latitude: Mapped[float | None]
+    longitude: Mapped[float | None]
+    # The operator's decision about the machine, not the hardware's own state:
+    # a postamat can be `active` while its device is offline, and `blocked`
+    # while the device is happily online. Presence lives on Device.
+    status: Mapped[PostamatStatus] = mapped_column(
+        String(16), default=PostamatStatus.ACTIVE
+    )
+    round_the_clock: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    schedule: Mapped[list["PostamatSchedule"]] = relationship(
+        back_populates="postamat", lazy="selectin", cascade="all, delete-orphan"
+    )
+
+
+class PostamatSchedule(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "postamat_schedules"
+
+    postamat_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("postamats.id"), index=True
+    )
+    weekday: Mapped[int] = mapped_column(Integer)  # 0 = Monday
+    opens_at: Mapped[time] = mapped_column(Time)
+    closes_at: Mapped[time] = mapped_column(Time)
+
+    postamat: Mapped[Postamat] = relationship(back_populates="schedule")
+
+
+class Device(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "devices"
+
+    postamat_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("postamats.id"), unique=True
+    )
+    status: Mapped[DeviceStatus] = mapped_column(
+        String(16), default=DeviceStatus.OFFLINE
+    )
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    agent_version: Mapped[str | None] = mapped_column(String(32))
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    mac_address: Mapped[str | None] = mapped_column(String(17))

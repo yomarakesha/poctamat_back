@@ -51,6 +51,75 @@ async def session(test_engine):
 
 
 @pytest.fixture
+async def admin_user(session):
+    from app.core.security import hash_secret
+    from app.modules.identity.models import AdminUser, Role
+
+    role = Role(code="operator", name="Operator", permissions=[
+        "postamats.read", "postamats.write", "cells.read", "cells.write",
+        "tariffs.read", "tariffs.write", "roles.read",
+    ])
+    session.add(role)
+    await session.flush()
+    admin = AdminUser(login="admin_test", full_name="Тестов Т.Т.",
+                      password_hash=hash_secret("secret123"), role_id=role.id)
+    session.add(admin)
+    await session.commit()
+    # The router reads admin.role.permissions. The instance this fixture just
+    # created lives in the same identity map the request will hit, so it comes
+    # back without its joined role unless it is refreshed here — and a lazy load
+    # inside async code raises MissingGreenlet rather than loading.
+    await session.refresh(admin)
+    return admin
+
+
+@pytest.fixture
+def admin_token(admin_user):
+    # Minted directly rather than through the login endpoint: a fixture that
+    # logs in makes every admin test depend on the login route staying green.
+    from app.core.security import create_access_token
+
+    return create_access_token("admin", admin_user.id)
+
+
+@pytest.fixture
+async def city(session):
+    from app.modules.catalog.models import City
+
+    row = City(code="ashgabat", name_tk="Aşgabat", name_ru="Ашхабад",
+               name_en="Ashgabat")
+    session.add(row)
+    await session.commit()
+    return row
+
+
+@pytest.fixture
+async def cell_type(session):
+    from app.modules.catalog.models import CellType
+
+    row = CellType(code="small", name_tk="Kiçi", name_ru="Маленький", name_en="Small",
+                   width_cm=20, height_cm=20, depth_cm=40)
+    session.add(row)
+    await session.commit()
+    return row
+
+
+@pytest.fixture
+async def postamat(session, city):
+    from app.modules.catalog.models import Postamat
+
+    row = Postamat(number="10001", name="ТП #1", city_id=city.id,
+                   address="ул. Ататюрк, 31")
+    session.add(row)
+    await session.commit()
+    # Same reason as admin_user: the request reuses this session, so the row is
+    # served from the identity map and its schedule collection has to be loaded
+    # here rather than lazily inside the request.
+    await session.refresh(row)
+    return row
+
+
+@pytest.fixture
 async def client(session):
     app = create_app()
     app.dependency_overrides[get_session] = lambda: session
