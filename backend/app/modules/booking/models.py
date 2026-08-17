@@ -1,0 +1,117 @@
+import uuid
+from datetime import datetime
+from enum import StrEnum
+
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.db import Base, Timestamped, UUIDPrimaryKey
+
+
+class BookingStatus(StrEnum):
+    PENDING_PAYMENT = "pending_payment"
+    PAID = "paid"
+    AWAITING_DEPOSIT = "awaiting_deposit"
+    AWAITING_PICKUP = "awaiting_pickup"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+# The statuses during which the cell belongs to this booking and to no other.
+# The partial unique index below is built from exactly this set, so adding a
+# status here without regenerating the index would let a cell be sold twice.
+CELL_HELD_STATUSES = frozenset({
+    BookingStatus.PENDING_PAYMENT,
+    BookingStatus.PAID,
+    BookingStatus.AWAITING_DEPOSIT,
+    BookingStatus.AWAITING_PICKUP,
+})
+
+_HELD_SQL = ", ".join(f"'{status.value}'" for status in sorted(CELL_HELD_STATUSES))
+
+
+class Depositor(StrEnum):
+    OWNER = "owner"
+    COURIER = "courier"
+
+
+class CodePurpose(StrEnum):
+    DEPOSIT = "deposit"
+    COURIER = "courier"
+    PICKUP = "pickup"
+
+
+class Booking(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "bookings"
+    __table_args__ = (
+        Index(
+            "uq_active_booking_per_cell", "cell_id", unique=True,
+            sqlite_where=text(f"status IN ({_HELD_SQL})"),
+            postgresql_where=text(f"status IN ({_HELD_SQL})"),
+        ),
+        Index("ix_bookings_client_created", "client_id", "created_at"),
+    )
+
+    client_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    postamat_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    cell_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    cell_type_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    duration_hours: Mapped[int] = mapped_column(Integer)
+    # Copied from the tariff, never referenced: prices change and history has to
+    # stay true to what the customer agreed to pay.
+    amount_minor: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), default="TMT")
+    status: Mapped[BookingStatus] = mapped_column(
+        String(24), index=True, default=BookingStatus.PENDING_PAYMENT
+    )
+    depositor: Mapped[Depositor] = mapped_column(String(16), default=Depositor.OWNER)
+    courier_phone: Mapped[str | None] = mapped_column(String(16))
+    recipient_phone: Mapped[str] = mapped_column(String(16), index=True)
+    recipient_name: Mapped[str | None] = mapped_column(String(200))
+    # The short reservation before payment. Distinct from expires_at, which is
+    # the storage clock and only starts once the parcel is in the cell.
+    hold_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deposited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_reason: Mapped[str | None] = mapped_column(String(500))
+
+    events: Mapped[list["BookingEvent"]] = relationship(
+        back_populates="booking", lazy="selectin", cascade="all, delete-orphan",
+        order_by="BookingEvent.created_at",
+    )
+    codes: Mapped[list["AccessCode"]] = relationship(
+        back_populates="booking", lazy="selectin", cascade="all, delete-orphan",
+    )
+
+
+class BookingEvent(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "booking_events"
+
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("bookings.id"), index=True
+    )
+    # The timeline the app renders. One row per transition, so the screen never
+    # has to reconstruct history from a single status column.
+    status: Mapped[BookingStatus] = mapped_column(String(24))
+    message: Mapped[str] = mapped_column(String(200))
+    details: Mapped[dict | None] = mapped_column(JSON)
+
+    booking: Mapped[Booking] = relationship(back_populates="events")
+
+
+class AccessCode(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "access_codes"
+
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("bookings.id"), index=True
+    )
+    purpose: Mapped[CodePurpose] = mapped_column(String(16))
+    # Only the digest. The plaintext is shown once, when it is issued.
+    code_hash: Mapped[str] = mapped_column(String(64), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    booking: Mapped[Booking] = relationship(back_populates="codes")

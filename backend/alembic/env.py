@@ -14,6 +14,7 @@ from app.core.config import BACKEND_DIR
 from app.core.db import Base
 from app.core.idempotency import IdempotencyRecord  # noqa: F401  register model
 from app.modules.audit import models as audit_models  # noqa: F401  register models
+from app.modules.booking import models as booking_models  # noqa: F401  register models
 from app.modules.catalog import models as catalog_models  # noqa: F401  register models
 from app.modules.identity import models as identity_models  # noqa: F401  register models
 
