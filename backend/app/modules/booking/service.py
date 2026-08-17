@@ -34,7 +34,17 @@ ALLOWED_TRANSITIONS: dict[BookingStatus, frozenset[BookingStatus]] = {
     ),
     # No cancellation from here on: the parcel is inside, and freeing the cell
     # would hand someone else a door with a stranger's parcel behind it.
-    BookingStatus.AWAITING_PICKUP: frozenset({BookingStatus.COMPLETED}),
+    BookingStatus.AWAITING_PICKUP: frozenset(
+        {BookingStatus.COMPLETED, BookingStatus.EXPIRED}
+    ),
+    # Collection stays reachable from every overdue stage: nothing is charged
+    # for being late, so the recipient can still take their parcel right up
+    # until staff physically remove it.
+    BookingStatus.EXPIRED: frozenset({BookingStatus.COMPLETED, BookingStatus.GRACE}),
+    BookingStatus.GRACE: frozenset({BookingStatus.COMPLETED, BookingStatus.OVERDUE}),
+    BookingStatus.OVERDUE: frozenset({BookingStatus.COMPLETED, BookingStatus.REMOVED}),
+    BookingStatus.REMOVED: frozenset({BookingStatus.CLOSED}),
+    BookingStatus.CLOSED: frozenset(),
     BookingStatus.COMPLETED: frozenset(),
     BookingStatus.CANCELLED: frozenset(),
 }
@@ -53,8 +63,13 @@ def assert_transition(current: BookingStatus, target: BookingStatus) -> None:
         )
 
 
-def _as_utc(value: datetime) -> datetime:
-    # SQLite hands back naive datetimes even for DateTime(timezone=True) columns.
+def as_utc(value: datetime) -> datetime:
+    """Give a stored datetime its timezone back.
+
+    SQLite returns naive values even for DateTime(timezone=True) columns, and
+    comparing one against an aware `utcnow()` raises. Public because the overdue
+    worker reads the same columns.
+    """
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
@@ -207,6 +222,31 @@ async def mark_collected(
 ) -> Booking:
     booking.collected_at = moment or utcnow()
     return await _move(session, booking, BookingStatus.COMPLETED, "Получено")
+
+
+async def expire(session: AsyncSession, booking: Booking) -> Booking:
+    return await _move(session, booking, BookingStatus.EXPIRED, "Срок хранения истёк")
+
+
+async def to_grace(session: AsyncSession, booking: Booking) -> Booking:
+    return await _move(session, booking, BookingStatus.GRACE, "Льготный период")
+
+
+async def to_overdue(session: AsyncSession, booking: Booking) -> Booking:
+    booking.remove_after = utcnow() + timedelta(
+        hours=get_settings().removal_after_hours
+    )
+    return await _move(session, booking, BookingStatus.OVERDUE, "Просрочено")
+
+
+async def mark_removed(session: AsyncSession, booking: Booking) -> Booking:
+    # This is what frees the cell, and custody calls it only after an act
+    # exists: a cell released without a record is a parcel nobody can trace.
+    return await _move(session, booking, BookingStatus.REMOVED, "Посылка изъята")
+
+
+async def close_custody(session: AsyncSession, booking: Booking) -> Booking:
+    return await _move(session, booking, BookingStatus.CLOSED, "Дело закрыто")
 
 
 async def cancel(

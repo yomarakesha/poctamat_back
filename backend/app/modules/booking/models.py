@@ -15,16 +15,27 @@ class BookingStatus(StrEnum):
     AWAITING_PICKUP = "awaiting_pickup"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    # The overdue branch. Nothing is charged at any stage; the stages exist so
+    # staff know when a cell may be emptied and the recipient is warned first.
+    EXPIRED = "expired"
+    GRACE = "grace"
+    OVERDUE = "overdue"
+    REMOVED = "removed"
+    CLOSED = "closed"
 
 
 # The statuses during which the cell belongs to this booking and to no other.
-# The partial unique index below is built from exactly this set, so adding a
-# status here without regenerating the index would let a cell be sold twice.
+# The partial unique index below is built from exactly this set, so changing it
+# without rebuilding the index in a migration would let a cell be sold while
+# somebody's parcel is still inside it.
 CELL_HELD_STATUSES = frozenset({
     BookingStatus.PENDING_PAYMENT,
     BookingStatus.PAID,
     BookingStatus.AWAITING_DEPOSIT,
     BookingStatus.AWAITING_PICKUP,
+    BookingStatus.EXPIRED,
+    BookingStatus.GRACE,
+    BookingStatus.OVERDUE,
 })
 
 _HELD_SQL = ", ".join(f"'{status.value}'" for status in sorted(CELL_HELD_STATUSES))
@@ -83,6 +94,13 @@ class Booking(UUIDPrimaryKey, Timestamped, Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_reason: Mapped[str | None] = mapped_column(String(500))
+    # When staff may take the parcel out. Stored rather than computed so the
+    # work queue is a plain query, and so retuning the interval never
+    # retroactively moves parcels that are already overdue.
+    remove_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Stamped when the "your storage ends soon" message goes out, so a worker
+    # running every five minutes does not send it every five minutes.
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     events: Mapped[list["BookingEvent"]] = relationship(
         back_populates="booking", lazy="selectin", cascade="all, delete-orphan",
