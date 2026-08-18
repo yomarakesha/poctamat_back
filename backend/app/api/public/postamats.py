@@ -113,10 +113,10 @@ async def postamat_availability(
             continue
         items.append(AvailabilityItem(
             cell_type_id=cell_type_id, code=cell_type.code,
-            name=localized(cell_type, language), width_cm=cell_type.width_cm,
-            height_cm=cell_type.height_cm, depth_cm=cell_type.depth_cm,
+            name=localized(cell_type, language), width_mm=cell_type.width_mm,
+            height_mm=cell_type.height_mm, depth_mm=cell_type.depth_mm,
             free=sum(1 for cell_id in cell_ids if cell_id not in held),
             prices=sorted(prices[cell_type_id], key=lambda price: price.duration_hours),
         ))
-    items.sort(key=lambda item: (item.width_cm, item.code))
+    items.sort(key=lambda item: (item.width_mm, item.code))
     return AvailabilityOut(items=items)

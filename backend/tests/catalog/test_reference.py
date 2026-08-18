@@ -14,9 +14,9 @@ async def test_cities_are_localized(client, session):
 
 async def test_blocked_cell_types_are_hidden(client, session):
     session.add(CellType(code="small", name_tk="Kiçi", name_ru="Маленький", name_en="Small",
-                         width_cm=20, height_cm=20, depth_cm=40))
+                         width_mm=200, height_mm=200, depth_mm=400))
     session.add(CellType(code="huge", name_tk="X", name_ru="X", name_en="X",
-                         width_cm=90, height_cm=90, depth_cm=90, is_blocked=True))
+                         width_mm=900, height_mm=900, depth_mm=900, is_blocked=True))
     await session.commit()
 
     response = await client.get("/api/v1/cell-types")

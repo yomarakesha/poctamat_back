@@ -19,9 +19,9 @@ class CellTypeOut(BaseModel):
     id: uuid.UUID
     code: str
     name: str
-    width_cm: int
-    height_cm: int
-    depth_cm: int
+    width_mm: int
+    height_mm: int
+    depth_mm: int
 
 
 def localized(row, language: str) -> str:
@@ -180,9 +180,9 @@ class AvailabilityItem(BaseModel):
     cell_type_id: uuid.UUID
     code: str
     name: str
-    width_cm: int
-    height_cm: int
-    depth_cm: int
+    width_mm: int
+    height_mm: int
+    depth_mm: int
     free: int
     prices: list[PriceOut]
 

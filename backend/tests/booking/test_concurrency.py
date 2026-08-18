@@ -33,7 +33,7 @@ async def test_only_one_of_ten_parallel_bookings_takes_the_last_cell(
         city = City(code="ashgabat", name_tk="Aşgabat", name_ru="Ашхабад",
                     name_en="Ashgabat")
         cell_type = CellType(code="small", name_tk="Kiçi", name_ru="Маленький",
-                             name_en="Small", width_cm=20, height_cm=20, depth_cm=40)
+                             name_en="Small", width_mm=200, height_mm=200, depth_mm=400)
         setup.add_all([city, cell_type])
         await setup.flush()
         postamat = Postamat(number="10099", name="ТП #99", city_id=city.id,

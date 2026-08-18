@@ -35,10 +35,13 @@ class CellType(UUIDPrimaryKey, Timestamped, Base):
     name_tk: Mapped[str] = mapped_column(String(50))
     name_ru: Mapped[str] = mapped_column(String(50))
     name_en: Mapped[str] = mapped_column(String(50))
-    width_cm: Mapped[int] = mapped_column(Integer)
-    height_cm: Mapped[int] = mapped_column(Integer)
-    depth_cm: Mapped[int] = mapped_column(Integer)
+    # Millimetres, as the contract types them. One unit end to end beats a
+    # conversion applied at the edge that somebody eventually forgets.
+    width_mm: Mapped[int] = mapped_column(Integer)
+    height_mm: Mapped[int] = mapped_column(Integer)
+    depth_mm: Mapped[int] = mapped_column(Integer)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class PostamatStatus(StrEnum):

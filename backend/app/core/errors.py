@@ -51,6 +51,7 @@ class ErrorCode(StrEnum):
 
     NO_FREE_CELLS = "NO_FREE_CELLS"
     CELL_TYPE_UNAVAILABLE = "CELL_TYPE_UNAVAILABLE"
+    CELL_TYPE_IN_USE = "CELL_TYPE_IN_USE"
     DURATION_NOT_SUPPORTED = "DURATION_NOT_SUPPORTED"
     RECIPIENT_PHONE_SAME_AS_SENDER = "RECIPIENT_PHONE_SAME_AS_SENDER"
     # Declared from day one though no limit is switched on yet: the app has to

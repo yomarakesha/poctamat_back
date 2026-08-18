@@ -38,12 +38,12 @@ async def list_cell_types(
 ) -> list[CellTypeOut]:
     language = get_language(request)
     rows = await session.scalars(
-        select(CellType).where(CellType.is_blocked.is_(False)).order_by(CellType.width_cm)
+        select(CellType).where(CellType.is_blocked.is_(False)).order_by(CellType.width_mm)
     )
     return [
         CellTypeOut(
             id=row.id, code=row.code, name=localized(row, language),
-            width_cm=row.width_cm, height_cm=row.height_cm, depth_cm=row.depth_cm,
+            width_mm=row.width_mm, height_mm=row.height_mm, depth_mm=row.depth_mm,
         )
         for row in rows
     ]

@@ -105,11 +105,11 @@ modify `backend/app/modules/staff/service.py`.
 **Files:** create `backend/app/api/admin/cell_types.py`, `backend/tests/catalog/test_cell_types.py`;
 modify `backend/app/modules/catalog/service.py`.
 
-- [ ] `GET /admin/cell-types`, `POST /admin/cell-types`, `PATCH /admin/cell-types/{id}`,
+- [x] `GET /admin/cell-types`, `POST /admin/cell-types`, `PATCH /admin/cell-types/{id}`,
       `POST /admin/cell-types/{id}/block` — the contract's shapes, three names per type.
-- [ ] Blocking a type that cells still use answers 409 `CELL_TYPE_IN_USE` unless every cell of that
+- [x] Blocking a type that cells still use answers 409 `CELL_TYPE_IN_USE` unless every cell of that
       type is free; a type behind a live booking cannot be taken out from under it.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 4: Cells — bulk, detail, maintenance, remote open
 

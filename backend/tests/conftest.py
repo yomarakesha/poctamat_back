@@ -136,7 +136,7 @@ async def cell_type(session):
     from app.modules.catalog.models import CellType
 
     row = CellType(code="small", name_tk="Kiçi", name_ru="Маленький", name_en="Small",
-                   width_cm=20, height_cm=20, depth_cm=40)
+                   width_mm=200, height_mm=200, depth_mm=400)
     session.add(row)
     await session.commit()
     return row

@@ -65,7 +65,7 @@ async def seed() -> dict:
         city = City(code="ashgabat", name_tk="Aşgabat", name_ru="Ашхабад",
                     name_en="Ashgabat")
         cell_type = CellType(code="small", name_tk="Kiçi", name_ru="Маленький",
-                             name_en="Small", width_cm=20, height_cm=20, depth_cm=40)
+                             name_en="Small", width_mm=200, height_mm=200, depth_mm=400)
         client = Client(phone="+99362123456", last_name="Аннаев", first_name="Мырат")
         session.add_all([city, cell_type, client])
         await session.flush()
