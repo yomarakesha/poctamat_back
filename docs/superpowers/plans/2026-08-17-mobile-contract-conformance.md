@@ -1,6 +1,6 @@
 # Mobile contract conformance (Plan 2c) — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [x]`) syntax.
 
 **Goal:** The client-facing half of this server answers exactly what
 `postbox-contract/openapi.yaml` says it answers, so the Flutter app can point its generated client
@@ -230,12 +230,12 @@ migration if `CodePurpose` changes; tests.
 
 **Files:** `backend/scripts/smoke.py`, `README.md`, this ledger.
 
-- [ ] Update the smoke script to the new paths and shapes.
-- [ ] Run the contract's own check:
+- [x] Update the smoke script to the new paths and shapes.
+- [x] Run the contract's own check:
       `schemathesis run ../postbox-contract/openapi.yaml --base-url http://localhost:8000/api/v1`
       against a live server with a seeded database, and fix what it finds on the client surface.
       Admin and kiosk failures are expected and out of scope for this plan.
-- [ ] Write the handover note for the front-end developer: base URL, which operations conform,
+- [x] Write the handover note for the front-end developer: base URL, which operations conform,
       which are still missing, and how to authenticate.
 
 ## Definition of done

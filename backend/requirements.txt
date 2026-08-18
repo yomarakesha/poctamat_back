@@ -12,3 +12,9 @@ python-multipart>=0.0.20
 pytest>=8.3.4
 pytest-asyncio>=0.25.0
 httpx>=0.28.1
+
+# Contract checking. Only scripts/contract_walk.py and scripts/contract_coverage.py
+# need these; the application itself does not import them.
+pyyaml>=6.0.2
+jsonschema>=4.23.0
+schemathesis>=4.24.0

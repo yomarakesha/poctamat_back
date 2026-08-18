@@ -27,7 +27,7 @@ def require_idempotency_key(request: Request) -> str:
     key = request.headers.get("Idempotency-Key")
     if not key:
         raise AppError(
-            ErrorCode.IDEMPOTENCY_KEY_REQUIRED,
+            ErrorCode.IDEMPOTENCY_KEY_MISSING,
             "This endpoint requires an Idempotency-Key header.", 400,
             details={"header": "Idempotency-Key"},
         )

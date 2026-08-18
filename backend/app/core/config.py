@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Per booking, per grant. Rotation mints a new code and kills the old one,
     # so an unthrottled button is a way to invalidate a courier's PIN repeatedly.
     code_resend_seconds: int = 60
+    # How long a deposit code stays usable. It opens an empty cell, so it need
+    # not outlive the trip to the postamat, and a grant with no end is a grant
+    # somebody finds in an old SMS a month later.
+    deposit_code_hours: int = 24
     # How long the acquirer's page stays good for. Shown to the client so the
     # result screen can stop polling instead of spinning forever.
     payment_session_minutes: int = 15

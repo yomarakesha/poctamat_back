@@ -42,7 +42,7 @@ async def test_a_courier_booking_without_a_courier_phone_is_rejected(
     await _ready(client, session, admin_token, city, cell_type, postamat)
     response = await book(_body(postamat, cell_type, deposited_by="courier"))
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 async def test_a_courier_phone_without_a_courier_is_rejected(

@@ -45,7 +45,7 @@ async def test_paying_twice_is_refused(session):
 
     with pytest.raises(AppError) as caught:
         await mark_paid(session, booking)
-    assert caught.value.code == ErrorCode.BOOKING_INVALID_STATE
+    assert caught.value.code == ErrorCode.CONFLICT
 
 
 async def test_deposit_starts_the_storage_clock_at_the_next_opening(session, postamat):

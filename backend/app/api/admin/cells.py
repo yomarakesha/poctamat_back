@@ -99,7 +99,7 @@ async def create_cells(
         # The batch is one unit: a rollback here is what keeps a retry with the
         # corrected list from finding half a cabinet already in place.
         await session.rollback()
-        raise AppError(ErrorCode.CELL_NUMBER_TAKEN,
+        raise AppError(ErrorCode.CELL_NUMBER_DUPLICATE,
                        "A cell with this number already exists in the postamat.",
                        409) from None
 

@@ -1,10 +1,12 @@
 import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.db import utcnow
 from app.core.security import hash_pin
 from app.modules.booking.models import (
     AccessCode,
@@ -19,6 +21,25 @@ def _digits(length: int) -> str:
     return "".join(secrets.choice("0123456789") for _ in range(length))
 
 
+def code_expiry(booking: Booking, purpose: CodePurpose) -> datetime:
+    """When this grant stops opening the door.
+
+    The deposit code has a window of its own: it opens an empty cell, so it need
+    not outlive the trip to the postamat. The pickup code lives as long as the
+    parcel is collectable, which is past `expires_at` — nothing is charged for
+    being late and staff remove the parcel only afterwards.
+    """
+    settings = get_settings()
+    if purpose == CodePurpose.DEPOSIT:
+        return utcnow() + timedelta(hours=settings.deposit_code_hours)
+    if booking.expires_at is None:
+        return utcnow() + timedelta(hours=booking.duration_hours)
+    stored = booking.expires_at
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    return stored + timedelta(hours=settings.removal_after_hours)
+
+
 def issue_code(booking: Booking, purpose: CodePurpose) -> str:
     """Issue the grant for one purpose, replacing whatever it had before.
 
@@ -28,13 +49,17 @@ def issue_code(booking: Booking, purpose: CodePurpose) -> str:
     at booking, the pickup code when the parcel is actually inside.
     """
     code = _digits(get_settings().pin_length)
+    expires_at = code_expiry(booking, purpose)
     for existing in booking.codes:
         if existing.purpose == purpose:
             existing.code_hash = hash_pin(code)
             existing.attempts = 0
             existing.used_at = None
+            existing.expires_at = expires_at
             return code
-    booking.codes.append(AccessCode(purpose=purpose, code_hash=hash_pin(code)))
+    booking.codes.append(
+        AccessCode(purpose=purpose, code_hash=hash_pin(code), expires_at=expires_at)
+    )
     return code
 
 

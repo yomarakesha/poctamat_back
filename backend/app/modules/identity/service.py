@@ -179,7 +179,7 @@ async def _assert_subject_usable(
     elif subject_type == "admin":
         admin = await session.get(AdminUser, subject_id)
         if admin is None or not admin.is_active:
-            raise AppError(ErrorCode.ADMIN_INACTIVE, "Account is inactive.", 403)
+            raise AppError(ErrorCode.ADMIN_ACCOUNT_BLOCKED, "Account is inactive.", 403)
 
 
 async def rotate_refresh_token(

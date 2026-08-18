@@ -42,7 +42,7 @@ async def test_malformed_phone_is_rejected(client):
     response = await client.post("/api/v1/auth/otp/request",
                                  json={"phone": "+7999123456"})
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 async def test_code_never_appears_in_the_response(client):

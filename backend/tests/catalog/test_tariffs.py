@@ -84,7 +84,7 @@ async def test_an_unknown_duration_is_rejected(client, admin_token, city, cell_t
     response = await client.put("/api/v1/admin/tariffs", headers=headers,
                                 json={"entries": entries})
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 async def test_a_negative_price_is_rejected(client, admin_token, city, cell_type):
@@ -94,4 +94,4 @@ async def test_a_negative_price_is_rejected(client, admin_token, city, cell_type
                      "duration_hours": 12, "amount_minor": -100}]
     })
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"

@@ -26,7 +26,7 @@ async def file_removal(
     is a parcel nobody can trace.
     """
     if booking.status not in REMOVABLE:
-        raise AppError(ErrorCode.BOOKING_INVALID_STATE,
+        raise AppError(ErrorCode.CONFLICT,
                        "Only a parcel flagged for removal may be taken out.", 409,
                        details={"status": str(booking.status)})
 
@@ -49,7 +49,7 @@ async def hand_over(
     to_whom: str, note: str | None,
 ) -> CustodyHandover:
     if record.status != CustodyStatus.AT_COUNTER:
-        raise AppError(ErrorCode.BOOKING_INVALID_STATE,
+        raise AppError(ErrorCode.CONFLICT,
                        "This parcel is no longer at the counter.", 409)
 
     handover = CustodyHandover(to_whom=to_whom, by_admin=admin_login, note=note)
@@ -71,7 +71,7 @@ async def dispose(
     reason: str,
 ) -> CustodyRecord:
     if record.status != CustodyStatus.AT_COUNTER:
-        raise AppError(ErrorCode.BOOKING_INVALID_STATE,
+        raise AppError(ErrorCode.CONFLICT,
                        "This parcel is no longer at the counter.", 409)
 
     record.status = CustodyStatus.DISPOSED

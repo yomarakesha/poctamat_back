@@ -64,5 +64,5 @@ def test_leaving_a_holding_status_for_a_free_one_is_what_frees_the_cell():
 def test_assert_transition_raises_a_409():
     with pytest.raises(AppError) as caught:
         assert_transition(BookingStatus.COMPLETED, BookingStatus.CANCELLED)
-    assert caught.value.code == ErrorCode.BOOKING_INVALID_STATE
+    assert caught.value.code == ErrorCode.CONFLICT
     assert caught.value.status_code == 409

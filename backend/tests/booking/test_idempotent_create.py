@@ -29,7 +29,7 @@ async def test_booking_without_an_idempotency_key_is_refused(
     response = await client.post("/api/v1/bookings", json=_body(postamat, cell_type),
                                  headers={"Authorization": f"Bearer {client_token}"})
     assert response.status_code == 400
-    assert response.json()["error"]["code"] == "IDEMPOTENCY_KEY_REQUIRED"
+    assert response.json()["error"]["code"] == "IDEMPOTENCY_KEY_MISSING"
 
 
 async def test_a_repeated_request_returns_the_first_booking_and_one_cell(

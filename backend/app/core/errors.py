@@ -8,7 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class ErrorCode(StrEnum):
-    VALIDATION_FAILED = "VALIDATION_FAILED"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
     NOT_FOUND = "NOT_FOUND"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
@@ -16,7 +16,7 @@ class ErrorCode(StrEnum):
     REFRESH_TOKEN_INVALID = "REFRESH_TOKEN_INVALID"
     REFRESH_TOKEN_EXPIRED = "REFRESH_TOKEN_EXPIRED"
     TOKEN_INVALID = "TOKEN_INVALID"
-    PERMISSION_DENIED = "PERMISSION_DENIED"
+    FORBIDDEN = "FORBIDDEN"
 
     OTP_INVALID = "OTP_INVALID"
     OTP_EXPIRED = "OTP_EXPIRED"
@@ -25,23 +25,24 @@ class ErrorCode(StrEnum):
     OTP_REQUEST_TOO_SOON = "OTP_REQUEST_TOO_SOON"
 
     CLIENT_BLOCKED = "CLIENT_BLOCKED"
-    ADMIN_INACTIVE = "ADMIN_INACTIVE"
-    CREDENTIALS_INVALID = "CREDENTIALS_INVALID"
+    ADMIN_ACCOUNT_BLOCKED = "ADMIN_ACCOUNT_BLOCKED"
+    ADMIN_CREDENTIALS_INVALID = "ADMIN_CREDENTIALS_INVALID"
 
     IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED"
-    IDEMPOTENCY_KEY_REQUIRED = "IDEMPOTENCY_KEY_REQUIRED"
+    IDEMPOTENCY_KEY_MISSING = "IDEMPOTENCY_KEY_MISSING"
     RATE_LIMITED = "RATE_LIMITED"
+    FILE_TOO_LARGE = "FILE_TOO_LARGE"
+    UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE"
 
     TARIFF_INCOMPLETE = "TARIFF_INCOMPLETE"
     POSTAMAT_BLOCKED = "POSTAMAT_BLOCKED"
-    CELL_NUMBER_TAKEN = "CELL_NUMBER_TAKEN"
+    CELL_NUMBER_DUPLICATE = "CELL_NUMBER_DUPLICATE"
     # Kept for transitions no endpoint documents individually. Where the contract
     # names a specific refusal, the specific code below is the one to raise.
-    BOOKING_INVALID_STATE = "BOOKING_INVALID_STATE"
+    CONFLICT = "CONFLICT"
     PROFILE_INCOMPLETE = "PROFILE_INCOMPLETE"
     CITY_NOT_AVAILABLE = "CITY_NOT_AVAILABLE"
     NAME_INVALID = "NAME_INVALID"
-    CITY_IN_USE = "CITY_IN_USE"
 
     NO_FREE_CELLS = "NO_FREE_CELLS"
     CELL_TYPE_UNAVAILABLE = "CELL_TYPE_UNAVAILABLE"
@@ -113,10 +114,23 @@ def install_error_handlers(app: FastAPI) -> None:
             {"field": ".".join(str(p) for p in err["loc"][1:]), "reason": err["msg"]}
             for err in exc.errors()
         ]
-        return _envelope(request, ErrorCode.VALIDATION_FAILED,
+        return _envelope(request, ErrorCode.VALIDATION_ERROR,
                          "Request body failed validation.", {"fields": fields}, 422)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        code = ErrorCode.NOT_FOUND if exc.status_code == 404 else ErrorCode.INTERNAL_ERROR
+        # A 400 from Starlette is a body it could not parse at all — malformed
+        # JSON, a truncated upload. That is the caller's request being wrong,
+        # not this server breaking, so it must not answer INTERNAL_ERROR.
+        code = {
+            400: ErrorCode.VALIDATION_ERROR,
+            401: ErrorCode.TOKEN_INVALID,
+            403: ErrorCode.FORBIDDEN,
+            404: ErrorCode.NOT_FOUND,
+            405: ErrorCode.VALIDATION_ERROR,
+            409: ErrorCode.CONFLICT,
+            413: ErrorCode.FILE_TOO_LARGE,
+            415: ErrorCode.UNSUPPORTED_MEDIA_TYPE,
+            429: ErrorCode.RATE_LIMITED,
+        }.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
         return _envelope(request, code, str(exc.detail), None, exc.status_code)

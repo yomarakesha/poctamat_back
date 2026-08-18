@@ -106,9 +106,13 @@ def _payment_brief(payment: Payment | None) -> PaymentBrief | None:
     return PaymentBrief(
         id=payment.id, booking_id=payment.booking_id, status=payment.status,
         amount=Money(amount_minor=payment.amount_minor, currency=payment.currency),
-        bank_code=payment.provider,
-        redirect_url=None,
-        expires_at=None,
+        # The bank the customer picked. `provider` is the integration that did
+        # the talking, and the contract types this field as a bank code.
+        bank_code=payment.bank_code or payment.provider,
+        # Carried rather than dropped: a client that comes back on a cold start
+        # needs the same acquirer URL it was sent to the first time.
+        redirect_url=payment.redirect_url,
+        expires_at=utc_isoformat(payment.expires_at) if payment.expires_at else None,
         failure_code=payment.failure_reason,
         created_at=utc_isoformat(payment.created_at),
     )

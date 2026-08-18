@@ -15,7 +15,7 @@ from app.core.kvstore import get_kvstore
 from app.core.pagination import CursorParams, cursor_params, paginate_cursor
 from app.core.types import PhoneNumber, utc_isoformat
 from app.modules.booking import service, views
-from app.modules.booking.codes import issue_code
+from app.modules.booking.codes import code_expiry, issue_code
 from app.modules.booking.models import (
     Booking,
     BookingStatus,
@@ -304,7 +304,10 @@ async def rotate_deposit_code(
     # The digits come back as well as going out by SMS: the sender reads them to
     # the courier when the message does not arrive, which is the case this
     # endpoint exists for.
-    return CodeIssued(code=code, expires_at=None, resend_after=resend_after)
+    return CodeIssued(code=code,
+                      expires_at=utc_isoformat(code_expiry(booking,
+                                                           CodePurpose.DEPOSIT)),
+                      resend_after=resend_after)
 
 
 @router.post("/{booking_id}/pickup-code/rotate", response_model=CodeIssued,
@@ -332,8 +335,8 @@ async def rotate_pickup_code(
                                step="pickup_code_sent")
     await session.commit()
     return CodeIssued(
-        code=code, expires_at=(utc_isoformat(booking.expires_at)
-                               if booking.expires_at else None),
+        code=code,
+        expires_at=utc_isoformat(code_expiry(booking, CodePurpose.PICKUP)),
         resend_after=resend_after,
     )
 

@@ -167,7 +167,9 @@ class Timeline(BaseModel):
 
 class CodeIssued(BaseModel):
     code: str
-    expires_at: str | None
+    # Always present: a grant with no end is a grant somebody finds in an old
+    # SMS a month later.
+    expires_at: str
     # Seconds before this booking may ask for another code.
     resend_after: int
 

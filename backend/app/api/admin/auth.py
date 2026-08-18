@@ -45,9 +45,9 @@ async def login(
     # An unknown login and a wrong password answer identically, so the endpoint
     # cannot be used to enumerate who works here.
     if admin is None or not verify_secret(payload.password, admin.password_hash):
-        raise AppError(ErrorCode.CREDENTIALS_INVALID, "Login or password is wrong.", 401)
+        raise AppError(ErrorCode.ADMIN_CREDENTIALS_INVALID, "Login or password is wrong.", 401)
     if not admin.is_active:
-        raise AppError(ErrorCode.ADMIN_INACTIVE, "Account is inactive.", 403)
+        raise AppError(ErrorCode.ADMIN_ACCOUNT_BLOCKED, "Account is inactive.", 403)
 
     access, refresh = await service.issue_token_pair(session, "admin", admin.id)
     await session.commit()

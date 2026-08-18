@@ -10,7 +10,7 @@ async def test_duplicate_cell_number_within_postamat_is_rejected(
 
     duplicate = await client.post("/api/v1/admin/cells", headers=headers, json=body)
     assert duplicate.status_code == 409
-    assert duplicate.json()["error"]["code"] == "CELL_NUMBER_TAKEN"
+    assert duplicate.json()["error"]["code"] == "CELL_NUMBER_DUPLICATE"
 
 
 async def test_bulk_create_accepts_a_full_cabinet(
@@ -123,4 +123,4 @@ async def test_listing_cells_needs_the_read_permission(client, session, postamat
     response = await client.get(f"/api/v1/admin/cells?postamat_id={postamat.id}",
                                 headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
-    assert response.json()["error"]["code"] == "PERMISSION_DENIED"
+    assert response.json()["error"]["code"] == "FORBIDDEN"

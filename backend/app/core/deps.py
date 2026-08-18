@@ -48,7 +48,7 @@ async def require_admin(
         raise AppError(ErrorCode.TOKEN_INVALID, "Not an admin token.", 401)
     admin = await session.get(AdminUser, uuid.UUID(claims["sub"]))
     if admin is None or not admin.is_active:
-        raise AppError(ErrorCode.ADMIN_INACTIVE, "Account is inactive.", 403)
+        raise AppError(ErrorCode.ADMIN_ACCOUNT_BLOCKED, "Account is inactive.", 403)
     return admin
 
 
@@ -56,7 +56,7 @@ def require_permission(code: str):
     async def dependency(admin: AdminUser = Depends(require_admin)) -> AdminUser:
         if code not in (admin.role.permissions or []):
             raise AppError(
-                ErrorCode.PERMISSION_DENIED, f"Permission {code} is required.", 403,
+                ErrorCode.FORBIDDEN, f"Permission {code} is required.", 403,
                 details={"required": code},
             )
         return admin

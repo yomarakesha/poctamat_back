@@ -120,7 +120,7 @@ async def test_a_window_crossing_midnight_is_rejected(client, admin_token, posta
         json={"slots": [{"weekday": 0, "opens_at": "22:00", "closes_at": "06:00"}]},
     )
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 async def test_the_same_weekday_twice_is_rejected(client, admin_token, postamat):

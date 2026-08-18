@@ -79,7 +79,7 @@ def decode_cursor(cursor: str) -> tuple[str, str]:
         # problem rather than a server error — and never a reason to fall back to
         # page one, which would silently repeat rows the caller has already seen.
         raise AppError(
-            ErrorCode.VALIDATION_FAILED, "Malformed cursor.", 422,
+            ErrorCode.VALIDATION_ERROR, "Malformed cursor.", 422,
             details={"cursor": cursor},
         ) from error
     return moment, row_id

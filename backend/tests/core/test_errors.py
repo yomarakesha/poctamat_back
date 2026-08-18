@@ -40,4 +40,4 @@ async def test_app_error_renders_envelope(error_client):
 async def test_validation_error_renders_envelope(client):
     response = await client.post("/api/v1/auth/otp/request", json={})
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"

@@ -88,7 +88,7 @@ async def create_postamat(
         select(Postamat.id).where(Postamat.number == payload.number)
     )
     if taken is not None:
-        raise AppError(ErrorCode.VALIDATION_FAILED, "Postamat number already exists.",
+        raise AppError(ErrorCode.VALIDATION_ERROR, "Postamat number already exists.",
                        409, details={"field": "number"})
     postamat = Postamat(**payload.model_dump())
     session.add(postamat)
@@ -165,7 +165,7 @@ async def upload_photo(
 ) -> PhotoOut:
     postamat = await _load(session, postamat_id)
     if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise AppError(ErrorCode.VALIDATION_FAILED,
+        raise AppError(ErrorCode.VALIDATION_ERROR,
                        "Only PNG, JPEG and WebP images are accepted.", 422,
                        details={"content_type": file.content_type})
 
@@ -173,7 +173,7 @@ async def upload_photo(
     if len(data) > get_settings().max_upload_bytes:
         # 413 rather than 422: the file is not malformed, it is too large, and
         # the client can act on that difference.
-        raise AppError(ErrorCode.VALIDATION_FAILED, "The file is too large.", 413,
+        raise AppError(ErrorCode.VALIDATION_ERROR, "The file is too large.", 413,
                        details={"max_bytes": get_settings().max_upload_bytes})
 
     key = get_file_storage().save(data, file.content_type)

@@ -67,7 +67,7 @@ def can_transition(current: BookingStatus, target: BookingStatus) -> bool:
 def assert_transition(current: BookingStatus, target: BookingStatus) -> None:
     if not can_transition(current, target):
         raise AppError(
-            ErrorCode.BOOKING_INVALID_STATE,
+            ErrorCode.CONFLICT,
             f"A booking in state {current.value} cannot become {target.value}.",
             409, details={"from": current.value, "to": target.value},
         )

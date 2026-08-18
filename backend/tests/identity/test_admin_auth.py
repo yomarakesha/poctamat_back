@@ -31,7 +31,7 @@ async def test_wrong_password_is_401(client, session):
     response = await client.post("/api/v1/admin/auth/login",
                                  json={"login": "admin_ivanov", "password": "nope"})
     assert response.status_code == 401
-    assert response.json()["error"]["code"] == "CREDENTIALS_INVALID"
+    assert response.json()["error"]["code"] == "ADMIN_CREDENTIALS_INVALID"
 
 
 async def test_missing_permission_is_403(client, session):
@@ -42,7 +42,7 @@ async def test_missing_permission_is_403(client, session):
     response = await client.get("/api/v1/admin/roles",
                                 headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
-    assert response.json()["error"]["code"] == "PERMISSION_DENIED"
+    assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
 async def test_blocked_client_cannot_refresh(client, session):
@@ -86,4 +86,4 @@ async def test_deactivated_admin_cannot_refresh(client, session):
         json={"refresh_token": login.json()["refresh_token"]},
     )
     assert response.status_code == 403
-    assert response.json()["error"]["code"] == "ADMIN_INACTIVE"
+    assert response.json()["error"]["code"] == "ADMIN_ACCOUNT_BLOCKED"
