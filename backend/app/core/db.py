@@ -18,17 +18,24 @@ class UUIDPrimaryKey:
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
 
-class Timestamped:
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-
 def utcnow() -> datetime:
     return datetime.now(tz=timezone.utc)
+
+
+class Timestamped:
+    # Filled in Python rather than by CURRENT_TIMESTAMP, which has second
+    # resolution: rows written in the same second would share a timestamp, and
+    # keyset pagination orders by exactly this column. Equal keys make the
+    # cursor's "older than this row" test match rows the caller has already
+    # seen, so a page repeats. The server default stays as a floor for rows
+    # inserted by hand or by a migration.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, server_default=func.now(),
+        onupdate=utcnow,
+    )
 
 
 TXN_MODE_OPTION = "sqlite_txn"

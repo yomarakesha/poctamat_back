@@ -66,13 +66,6 @@ class Booking(UUIDPrimaryKey, Timestamped, Base):
         Index("ix_bookings_client_created", "client_id", "created_at"),
     )
 
-    # Filled in Python rather than by CURRENT_TIMESTAMP, which has second
-    # resolution: bookings made in the same second would otherwise come back in
-    # arbitrary order and the client's list would shuffle between requests.
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, server_default=func.now()
-    )
-
     client_id: Mapped[uuid.UUID] = mapped_column(index=True)
     postamat_id: Mapped[uuid.UUID] = mapped_column(index=True)
     cell_id: Mapped[uuid.UUID] = mapped_column(index=True)

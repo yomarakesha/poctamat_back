@@ -9,7 +9,6 @@ from app.api.admin import postamats as admin_postamats
 from app.api.admin import tariffs as admin_tariffs
 from app.api.mobile import auth as mobile_auth
 from app.api.mobile import bookings as mobile_bookings
-from app.api.mobile import notifications as mobile_notifications
 from app.api.mobile import payments as mobile_payments
 from app.api.mobile import profile as mobile_profile
 from app.api.public import catalog as public_catalog
@@ -43,7 +42,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(mobile_auth.router, prefix=API_PREFIX)
     app.include_router(mobile_bookings.router, prefix=API_PREFIX)
-    app.include_router(mobile_notifications.router, prefix=API_PREFIX)
     app.include_router(mobile_payments.router, prefix=API_PREFIX)
     app.include_router(mobile_profile.router, prefix=API_PREFIX)
     app.include_router(admin_auth.router, prefix=API_PREFIX)

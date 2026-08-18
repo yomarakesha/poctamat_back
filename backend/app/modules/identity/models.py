@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, Timestamped, UUIDPrimaryKey
@@ -60,4 +60,22 @@ class RefreshToken(UUIDPrimaryKey, Timestamped, Base):
     subject_type: Mapped[str] = mapped_column(String(16))
     subject_id: Mapped[uuid.UUID] = mapped_column(index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PushToken(UUIDPrimaryKey, Timestamped, Base):
+    __tablename__ = "push_tokens"
+    __table_args__ = (
+        # One row per device per client, so two launches racing each other cannot
+        # leave the same token registered twice.
+        Index("uq_push_token_per_client", "client_id", "token", unique=True),
+    )
+
+    client_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    # The device token itself. Long, opaque and reissued by the platform
+    # whenever it feels like it, which is why re-registering the same value has
+    # to be idempotent rather than a duplicate row.
+    token: Mapped[str] = mapped_column(String(512))
+    platform: Mapped[str] = mapped_column(String(16))
+    app_version: Mapped[str | None] = mapped_column(String(32))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

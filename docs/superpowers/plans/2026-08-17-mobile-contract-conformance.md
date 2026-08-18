@@ -85,10 +85,10 @@ create `backend/tests/core/test_cursor.py`
 The cursor is opaque to the client and stable across inserts: it encodes the ordering column's
 value and the row id, so a row added between two pages cannot make one item appear twice.
 
-- [ ] Write tests: a page of 3 out of 5 returns `has_more: true` and a cursor; feeding that cursor
+- [x] Write tests: a page of 3 out of 5 returns `has_more: true` and a cursor; feeding that cursor
       back returns the remaining 2 with `has_more: false`; an unparseable cursor is a 422; inserting
       a newer row between pages does not duplicate or skip.
-- [ ] Implement, run, commit.
+- [x] Implement, run, commit.
 
 ### Task 2: The status set the contract defines
 
@@ -96,75 +96,75 @@ value and the row id, so a row added between two pages cannot make one item appe
 `app/modules/payments/service.py`, `app/workers/overdue.py`; migration; touch every test asserting
 `paid`.
 
-- [ ] `BookingStatus` loses `PAID`, gains `TO_REMOVE` and `PAYMENT_FAILED`.
-- [ ] `mark_paid` moves `pending_payment → awaiting_deposit` in one transition and writes two
+- [x] `BookingStatus` loses `PAID`, gains `TO_REMOVE` and `PAYMENT_FAILED`.
+- [x] `mark_paid` moves `pending_payment → awaiting_deposit` in one transition and writes two
       timeline entries (`paid`, then the state change), so the checklist screen still shows payment.
-- [ ] A declined payment moves the booking to `payment_failed` (C3); the hold worker keeps using
+- [x] A declined payment moves the booking to `payment_failed` (C3); the hold worker keeps using
       `cancelled` for an unpaid hold that simply ran out.
-- [ ] `CELL_HELD_STATUSES` gains `TO_REMOVE`; the partial unique index is rebuilt **by hand** in the
+- [x] `CELL_HELD_STATUSES` gains `TO_REMOVE`; the partial unique index is rebuilt **by hand** in the
       migration — autogenerate does not compare predicate text.
-- [ ] The overdue worker adds the `overdue → to_remove` stage at `remove_after`.
-- [ ] Suite green, commit.
+- [x] The overdue worker adds the `overdue → to_remove` stage at `remove_after`.
+- [x] Suite green, commit.
 
 ### Task 3: The client profile
 
 **Files:** modify `backend/app/modules/identity/models.py`; create
 `backend/app/api/mobile/profile.py`, `backend/tests/identity/test_profile.py`; migration.
 
-- [ ] `Client` gains `last_name`, `first_name`, `middle_name`; `default_city_id` is renamed
+- [x] `Client` gains `last_name`, `first_name`, `middle_name`; `default_city_id` is renamed
       `city_id` in the migration; `full_name` is dropped after the data is moved into `last_name`.
-- [ ] `GET /me` and `PATCH /me` returning the contract's `Client`: `id, phone, last_name,
+- [x] `GET /me` and `PATCH /me` returning the contract's `Client`: `id, phone, last_name,
       first_name, middle_name, city_id, language, status, profile_complete`. `status` is derived
       from `is_blocked`; `profile_complete` is `last_name and first_name`.
-- [ ] `PATCH /me` answers 422 `CITY_NOT_AVAILABLE` for an unknown or inactive city.
-- [ ] Booking creation answers 422 `PROFILE_INCOMPLETE` when the profile is not complete — the
+- [x] `PATCH /me` answers 422 `CITY_NOT_AVAILABLE` for an unknown or inactive city.
+- [x] Booking creation answers 422 `PROFILE_INCOMPLETE` when the profile is not complete — the
       contract lists that code and the app renders the registration form on it.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 4: Auth as the contract states it
 
 **Files:** modify `backend/app/modules/identity/service.py`, `schemas.py`,
 `backend/app/api/mobile/auth.py`, `backend/app/core/kvstore.py` if needed; tests.
 
-- [ ] `POST /auth/otp/request` answers `{request_id, code_length, expires_at, resend_after}`. The
+- [x] `POST /auth/otp/request` answers `{request_id, code_length, expires_at, resend_after}`. The
       code is stored under the request id as well as the phone, so verify can find it by id.
-- [ ] `POST /auth/otp/verify` takes `{request_id, code}` and answers `TokenPair + profile_complete`.
-- [ ] `TokenPair` everywhere is `{access_token, refresh_token, token_type: "Bearer", expires_in}`.
+- [x] `POST /auth/otp/verify` takes `{request_id, code}` and answers `TokenPair + profile_complete`.
+- [x] `TokenPair` everywhere is `{access_token, refresh_token, token_type: "Bearer", expires_in}`.
       `is_new_client` is gone — `profile_complete` replaced it.
-- [ ] Refresh failures answer `REFRESH_TOKEN_INVALID` / `REFRESH_TOKEN_EXPIRED`; OTP failures answer
+- [x] Refresh failures answer `REFRESH_TOKEN_INVALID` / `REFRESH_TOKEN_EXPIRED`; OTP failures answer
       `OTP_INVALID` with `attempts_left`, `OTP_EXPIRED`, `OTP_NOT_FOUND`, `OTP_ATTEMPTS_EXCEEDED`.
-- [ ] A blocked client answers 403 `CLIENT_BLOCKED` on request and verify.
-- [ ] Suite green, commit.
+- [x] A blocked client answers 403 `CLIENT_BLOCKED` on request and verify.
+- [x] Suite green, commit.
 
 ### Task 5: Push tokens
 
 **Files:** create `backend/app/modules/identity/push.py` or extend models; routes in
 `app/api/mobile/auth.py`; migration; tests.
 
-- [ ] `PushToken` model: client, token (≤512), platform (`android|ios`), app_version, revoked_at.
-- [ ] `POST /auth/push-tokens` → 201 `{push_token_id}`; re-registering the same token for the same
+- [x] `PushToken` model: client, token (≤512), platform (`android|ios`), app_version, revoked_at.
+- [x] `POST /auth/push-tokens` → 201 `{push_token_id}`; re-registering the same token for the same
       client returns the existing id rather than duplicating.
-- [ ] `DELETE /auth/push-tokens/{id}` → 204, 404 for someone else's token.
-- [ ] `POST /auth/logout` also revokes the push token bound to that session, which the contract
+- [x] `DELETE /auth/push-tokens/{id}` → 204, 404 for someone else's token.
+- [x] `POST /auth/logout` also revokes the push token bound to that session, which the contract
       states in prose.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 6: Notification settings and the feed at /me
 
 **Files:** create `backend/app/modules/notify/settings.py` (model) and move the feed router into
 `backend/app/api/mobile/profile.py`; delete `app/api/mobile/notifications.py`; migration; tests.
 
-- [ ] `NotificationSettings` per client: `push_parcel_deposited`, `push_cell_opened`,
+- [x] `NotificationSettings` per client: `push_parcel_deposited`, `push_cell_opened`,
       `push_expiring_soon`, `push_marketing`, all defaulting to true, plus a read-only
       `sms_always_on: true` on the wire. Created on demand for a client that has none.
-- [ ] `GET/PATCH /me/notification-settings`.
-- [ ] `GET /me/notifications` — cursor pagination, `unread_only`, and `{items, pagination,
+- [x] `GET/PATCH /me/notification-settings`.
+- [x] `GET /me/notifications` — cursor pagination, `unread_only`, and `{items, pagination,
       unread_count}`. Items carry `{id, type, title, body, booking_id, created_at, read_at}`;
       `type` is the stored `kind` and the contract's known values are used for it.
-- [ ] `POST /me/notifications/read` with optional `notification_ids` (omitted means all) →
+- [x] `POST /me/notifications/read` with optional `notification_ids` (omitted means all) →
       `{unread_count}`.
-- [ ] `Notification.is_read` becomes `read_at` in the migration.
-- [ ] Suite green, commit.
+- [x] `Notification.is_read` becomes `read_at` in the migration.
+- [x] Suite green, commit.
 
 ### Task 7: Booking payloads
 

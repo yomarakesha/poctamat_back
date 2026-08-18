@@ -10,7 +10,7 @@ from app.core.db import utcnow
 from app.core.errors import AppError, ErrorCode
 from app.core.kvstore import get_kvstore
 from app.core.security import create_access_token, hash_token
-from app.modules.identity.models import AdminUser, Client, RefreshToken
+from app.modules.identity.models import AdminUser, Client, PushToken, RefreshToken
 from app.modules.notify.models import NotificationChannel, NotificationKind
 from app.modules.notify.service import notify
 
@@ -205,3 +205,92 @@ async def revoke_refresh_token(
     stored = await _load_usable_refresh_token(session, token, subject_type)
     stored.revoked_at = utcnow()
     await session.flush()
+
+
+async def revoke_client_session(
+    session: AsyncSession, client_id: uuid.UUID, refresh_token: str | None
+) -> None:
+    """Tear down the caller's session.
+
+    The contract's logout carries no body: it revokes "the current session",
+    identified by the access token the request already carries. A client that
+    still knows its refresh token may name it, and then only that one dies —
+    logging out on the phone must not sign the tablet out too. Without one there
+    is nothing to single out, so every live token for this client goes.
+    """
+    stmt = select(RefreshToken).where(
+        RefreshToken.subject_type == "client",
+        RefreshToken.subject_id == client_id,
+        RefreshToken.revoked_at.is_(None),
+    )
+    if refresh_token is not None:
+        stmt = stmt.where(RefreshToken.token_hash == hash_token(refresh_token))
+
+    now = utcnow()
+    for stored in await session.scalars(stmt):
+        stored.revoked_at = now
+    await session.flush()
+
+
+async def register_push_token(
+    session: AsyncSession,
+    client_id: uuid.UUID,
+    token: str,
+    platform: str,
+    app_version: str | None,
+) -> PushToken:
+    """Store a device token, or hand back the row that already holds it.
+
+    The platform reissues these on its own schedule and the app re-registers on
+    every launch, so the same value arriving twice is the normal case, not a
+    conflict. A previously revoked row comes back to life rather than leaving a
+    duplicate behind.
+    """
+    existing = await session.scalar(
+        select(PushToken).where(
+            PushToken.client_id == client_id, PushToken.token == token
+        )
+    )
+    if existing is not None:
+        existing.revoked_at = None
+        existing.platform = platform
+        existing.app_version = app_version
+        await session.flush()
+        return existing
+
+    created = PushToken(
+        client_id=client_id, token=token, platform=platform, app_version=app_version
+    )
+    session.add(created)
+    await session.flush()
+    return created
+
+
+async def revoke_push_token(
+    session: AsyncSession, client_id: uuid.UUID, push_token_id: uuid.UUID
+) -> None:
+    row = await session.get(PushToken, push_token_id)
+    # Someone else's token is not found rather than forbidden: whether a given
+    # id exists is not a fact this caller gets to confirm.
+    if row is None or row.client_id != client_id or row.revoked_at is not None:
+        raise AppError(ErrorCode.NOT_FOUND, "Push token not found.", 404)
+    row.revoked_at = utcnow()
+    await session.flush()
+
+
+async def revoke_push_token_value(
+    session: AsyncSession, client_id: uuid.UUID, token: str
+) -> None:
+    """Revoke by the device token itself, which is what logout knows."""
+    row = await session.scalar(
+        select(PushToken).where(
+            PushToken.client_id == client_id,
+            PushToken.token == token,
+            PushToken.revoked_at.is_(None),
+        )
+    )
+    # Silence on a miss: logging out is not the place to tell a caller which of
+    # its tokens the server still holds.
+    if row is not None:
+        row.revoked_at = utcnow()
+        await session.flush()

@@ -1,17 +1,24 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.context import get_language
 from app.core.db import get_session
+from app.core.deps import require_client
 from app.core.ratelimit import rate_limit
 from app.core.types import utc_isoformat
 from app.modules.identity import service
+from app.modules.identity.models import Client
 from app.modules.identity.schemas import (
     ClientTokenPair,
+    LogoutRequest,
     OtpRequest,
     OtpRequestResult,
     OtpVerify,
+    PushTokenCreated,
+    PushTokenRequest,
     RefreshRequest,
     TokenPair,
 )
@@ -71,8 +78,41 @@ async def refresh(
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
-    payload: RefreshRequest, session: AsyncSession = Depends(get_session)
+    payload: LogoutRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+    client: Client = Depends(require_client),
 ) -> Response:
-    await service.revoke_refresh_token(session, payload.refresh_token, "client")
+    body = payload or LogoutRequest()
+    await service.revoke_client_session(session, client.id, body.refresh_token)
+    if body.push_token:
+        # Silencing the device is part of signing out: a token left registered
+        # keeps pushing about a session that no longer exists.
+        await service.revoke_push_token_value(session, client.id, body.push_token)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/auth/push-tokens", response_model=PushTokenCreated,
+             status_code=status.HTTP_201_CREATED)
+async def register_push_token(
+    payload: PushTokenRequest,
+    session: AsyncSession = Depends(get_session),
+    client: Client = Depends(require_client),
+) -> PushTokenCreated:
+    row = await service.register_push_token(
+        session, client.id, payload.token, payload.platform, payload.app_version
+    )
+    await session.commit()
+    return PushTokenCreated(push_token_id=row.id)
+
+
+@router.delete("/auth/push-tokens/{push_token_id}",
+               status_code=status.HTTP_204_NO_CONTENT)
+async def delete_push_token(
+    push_token_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    client: Client = Depends(require_client),
+) -> Response:
+    await service.revoke_push_token(session, client.id, push_token_id)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

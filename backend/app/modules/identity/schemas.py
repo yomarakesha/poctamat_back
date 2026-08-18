@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -40,3 +41,22 @@ class ClientTokenPair(TokenPair):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    # Both optional, and the whole body with them: the contract's logout is a
+    # bare POST that revokes the session its bearer token names. A client that
+    # still holds its refresh token may name it, so that signing out on one
+    # device leaves the others signed in.
+    refresh_token: str | None = None
+    push_token: str | None = None
+
+
+class PushTokenRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+    platform: Literal["android", "ios"]
+    app_version: str | None = Field(default=None, max_length=32)
+
+
+class PushTokenCreated(BaseModel):
+    push_token_id: uuid.UUID

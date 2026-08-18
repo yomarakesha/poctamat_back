@@ -129,12 +129,38 @@ async def test_unknown_refresh_token_is_rejected(client):
 
 async def test_logout_revokes_the_refresh_token(client):
     issued = await _authenticate(client)
+    headers = {"Authorization": f"Bearer {issued['access_token']}"}
 
-    logged_out = await client.post("/api/v1/auth/logout",
+    logged_out = await client.post("/api/v1/auth/logout", headers=headers,
                                    json={"refresh_token": issued["refresh_token"]})
     assert logged_out.status_code == 204
 
     response = await client.post("/api/v1/auth/refresh",
+                                 json={"refresh_token": issued["refresh_token"]})
+    assert response.status_code == 401
+
+
+async def test_logout_without_a_body_revokes_the_whole_session(client):
+    # This is the shape the contract states: a bare POST whose bearer token says
+    # whose session ends. Nothing names a refresh token, so every live one for
+    # this client goes.
+    issued = await _authenticate(client)
+
+    logged_out = await client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {issued['access_token']}"},
+    )
+    assert logged_out.status_code == 204
+
+    response = await client.post("/api/v1/auth/refresh",
+                                 json={"refresh_token": issued["refresh_token"]})
+    assert response.status_code == 401
+
+
+async def test_logout_needs_a_client_token(client):
+    issued = await _authenticate(client)
+
+    response = await client.post("/api/v1/auth/logout",
                                  json={"refresh_token": issued["refresh_token"]})
     assert response.status_code == 401
 

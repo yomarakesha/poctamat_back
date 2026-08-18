@@ -295,6 +295,10 @@ async def main() -> int:
             print(f"\n{YELLOW}-- authenticated as a client --{RESET}")
             bearer = {"Authorization": f"Bearer {access}"}
             await call(client, "GET", "/api/v1/me", headers=bearer, expect=None)
+            # Booking refuses an unnamed client, so the registration form the app
+            # shows on `profile_complete: false` is part of the happy path here.
+            await call(client, "PATCH", "/api/v1/me", headers=bearer,
+                       json={"last_name": "Аннаев", "first_name": "Мырат"})
 
         if access and fleet:
             print(f"\n{YELLOW}-- booking a cell --{RESET}")
@@ -325,7 +329,9 @@ async def main() -> int:
                 # Lengths only. This output gets pasted into chats, and those
                 # five digits open a physical door.
                 lengths = {purpose: len(code)
-                           for purpose, code in created["codes"].items()}
+                           for purpose, code in (created.get("codes") or {}).items()}
+                if created.get("deposit_code"):
+                    lengths["deposit"] = len(created["deposit_code"])
                 print(f"{GREY}     cell {created['cell_number']}, code lengths "
                       f"{lengths}{RESET}")
 
@@ -389,9 +395,27 @@ async def main() -> int:
                               f"{detail['status']}{RESET}")
 
             print(f"\n{YELLOW}-- notifications --{RESET}")
-            await call(client, "GET", "/api/v1/notifications", headers=bearer)
-            await call(client, "POST", "/api/v1/notifications/read-all",
-                       headers=bearer, expect=204)
+            await call(client, "GET", "/api/v1/me/notifications", headers=bearer)
+            await call(client, "POST", "/api/v1/me/notifications/read",
+                       headers=bearer, json={})
+            await call(client, "GET", "/api/v1/me/notification-settings",
+                       headers=bearer)
+            await call(client, "PATCH", "/api/v1/me/notification-settings",
+                       headers=bearer, json={"push_marketing": True})
+
+            print(f"\n{YELLOW}-- push tokens --{RESET}")
+            registered = await call(
+                client, "POST", "/api/v1/auth/push-tokens", headers=bearer,
+                json={"token": "smoke-device-token", "platform": "android",
+                      "app_version": "1.0.0+1"},
+                expect=201,
+            )
+            if registered:
+                await call(
+                    client, "DELETE",
+                    f"/api/v1/auth/push-tokens/{registered['push_token_id']}",
+                    headers=bearer, expect=204,
+                )
 
     await engine.dispose()
     _db_file.unlink(missing_ok=True)
