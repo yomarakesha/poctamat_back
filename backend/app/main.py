@@ -3,6 +3,7 @@ from fastapi import APIRouter, FastAPI
 from app.api.admin import auth as admin_auth
 from app.api.admin import bookings as admin_bookings
 from app.api.admin import cells as admin_cells
+from app.api.admin import clients as admin_clients
 from app.api.admin import custody as admin_custody
 from app.api.admin import dashboard as admin_dashboard
 from app.api.admin import postamats as admin_postamats
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_custody.router, prefix=API_PREFIX)
     app.include_router(admin_dashboard.router, prefix=API_PREFIX)
     app.include_router(admin_users.router, prefix=API_PREFIX)
+    app.include_router(admin_clients.router, prefix=API_PREFIX)
     app.include_router(public_catalog.router, prefix=API_PREFIX)
     app.include_router(public_media.router, prefix=API_PREFIX)
     app.include_router(public_postamats.router, prefix=API_PREFIX)

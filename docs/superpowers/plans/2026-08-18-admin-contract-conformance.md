@@ -90,15 +90,15 @@ query on real data crosses ~200 ms.
 **Files:** create `backend/app/api/admin/clients.py`, `backend/tests/admin/test_clients.py`;
 modify `backend/app/modules/staff/service.py`.
 
-- [ ] `GET /admin/clients` — `AdminClientListItem`: `{id, full_name, phone, status, registered_at,
+- [x] `GET /admin/clients` — `AdminClientListItem`: `{id, full_name, phone, status, registered_at,
       active_bookings}`, with `?query=` over phone and name and `?status=`.
-- [ ] `GET /admin/clients/{id}` — adds the client's recent bookings and totals.
-- [ ] `POST /admin/clients/{id}/block` `{reason}` and `/unblock`. Blocking is already enforced at
+- [x] `GET /admin/clients/{id}` — adds the client's recent bookings and totals.
+- [x] `POST /admin/clients/{id}/block` `{reason}` and `/unblock`. Blocking is already enforced at
       login and on refresh; the tests must show a blocked client's live session dying at its next
       refresh rather than only at the next login.
-- [ ] Permissions `clients.read` / `clients.write`; every block and unblock writes an audit entry
+- [x] Permissions `clients.read` / `clients.write`; every block and unblock writes an audit entry
       naming the operator.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 3: Cell types
 

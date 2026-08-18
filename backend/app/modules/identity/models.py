@@ -21,6 +21,9 @@ class Client(UUIDPrimaryKey, Timestamped, Base):
     city_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     blocked_reason: Mapped[str | None] = mapped_column(String(500))
+    # When, not merely whether: an operator looking at a blocked account needs to
+    # know if the decision is a year old or from this morning.
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property
     def profile_complete(self) -> bool:
