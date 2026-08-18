@@ -216,15 +216,15 @@ migration if `CodePurpose` changes; tests.
 **Files:** modify `backend/app/modules/payments/models.py`, `provider.py`, `service.py`,
 `app/api/mobile/payments.py`, `app/api/webhooks/payments.py`; migration; tests.
 
-- [ ] `PaymentStatus` becomes `pending, authorized, succeeded, failed, cancelled, expired`.
-- [ ] `Payment` gains `bank_code`, `redirect_url`, `expires_at`, `failure_code`.
-- [ ] `POST /bookings/{id}/payments` takes `{bank_code, return_url}` and answers the contract's
+- [x] `PaymentStatus` becomes `pending, authorized, succeeded, failed, cancelled, expired`.
+- [x] `Payment` gains `bank_code`, `redirect_url`, `expires_at`, `failure_code`.
+- [x] `POST /bookings/{id}/payments` takes `{bank_code, return_url}` and answers the contract's
       `Payment`; a second live session answers 409 `PAYMENT_ALREADY_EXISTS`; an unsupported bank
       answers 422 `BANK_NOT_SUPPORTED`.
-- [ ] `POST /payments/{id}/cancel` → `Payment`, 409 `PAYMENT_NOT_CANCELLABLE` once authorised.
-- [ ] The webhook accepts `halk|senagat|rysgal|mock` (C7) and answers 400
+- [x] `POST /payments/{id}/cancel` → `Payment`, 409 `PAYMENT_NOT_CANCELLABLE` once authorised.
+- [x] The webhook accepts `halk|senagat|rysgal|mock` (C7) and answers 400
       `CALLBACK_SIGNATURE_INVALID` / `AMOUNT_MISMATCH`.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 10: Check it against their file
 

@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # Per booking, per grant. Rotation mints a new code and kills the old one,
     # so an unthrottled button is a way to invalidate a courier's PIN repeatedly.
     code_resend_seconds: int = 60
+    # How long the acquirer's page stays good for. Shown to the client so the
+    # result screen can stop polling instead of spinning forever.
+    payment_session_minutes: int = 15
+    # Banks with a live integration. Empty means "the mock answers for all of
+    # them", which is where this sits until an acquirer is chosen.
+    supported_banks: tuple[str, ...] = ()
 
     pin_length: int = 5
     hold_minutes: int = 10

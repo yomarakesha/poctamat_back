@@ -366,16 +366,19 @@ async def main() -> int:
             if paid_booking:
                 started = await call(
                     client, "POST",
-                    f"/api/v1/bookings/{paid_booking['id']}/payment", expect=201,
+                    f"/api/v1/bookings/{paid_booking['id']}/payments", expect=201,
                     headers=bearer | {"Idempotency-Key": "smoke-payment-1"},
+                    json={"bank_code": "halk",
+                          "return_url": "postamat://payment/result"},
                 )
                 if started:
                     # Signed the way the acquirer will sign it: the endpoint is
                     # unauthenticated and the signature is the whole of its trust.
                     body = json.dumps({
-                        "payment_id": started["payment_id"],
-                        "provider_payment_id": f"mock-{started['payment_id']}",
+                        "payment_id": started["id"],
+                        "provider_payment_id": f"mock-{started['id']}",
                         "status": "succeeded",
+                        "amount_minor": started["amount"]["amount_minor"],
                     }).encode()
                     signature = hmac.new(
                         get_settings().payment_webhook_secret.encode(), body,
@@ -394,6 +397,13 @@ async def main() -> int:
                     if detail:
                         print(f"{GREY}     status after payment: "
                               f"{detail['status']}{RESET}")
+                    await call(
+                        client, "GET",
+                        f"/api/v1/bookings/{paid_booking['id']}/timeline",
+                        headers=bearer,
+                    )
+                    await call(client, "GET",
+                               f"/api/v1/payments/{started['id']}", headers=bearer)
 
             print(f"\n{YELLOW}-- notifications --{RESET}")
             await call(client, "GET", "/api/v1/me/notifications", headers=bearer)

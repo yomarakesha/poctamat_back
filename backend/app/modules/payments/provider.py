@@ -20,6 +20,9 @@ class WebhookEvent:
     provider_payment_id: str
     succeeded: bool
     reason: str | None = None
+    # Checked against what the booking was priced at when the acquirer sends it.
+    # None means the callback did not carry one, not that it matched.
+    amount_minor: int | None = None
 
 
 class PaymentProvider(Protocol):
@@ -48,6 +51,9 @@ class MockProvider:
     SAQ-D.
     """
 
+    # The name the webhook path carries. The contract types that path parameter
+    # as a bank code; `mock` is accepted beside them until an acquirer ships,
+    # and that is a development affordance, not a fourth bank.
     name = "mock"
 
     async def start(
@@ -76,6 +82,7 @@ class MockProvider:
             provider_payment_id=payload.get("provider_payment_id", ""),
             succeeded=payload.get("status") == "succeeded",
             reason=payload.get("reason"),
+            amount_minor=payload.get("amount_minor"),
         )
 
 
