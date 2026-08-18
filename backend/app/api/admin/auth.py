@@ -3,13 +3,16 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
+from app.core.config import get_settings
+from app.core.db import get_session, utcnow
 from app.core.deps import require_admin, require_permission
 from app.core.errors import AppError, ErrorCode
 from app.core.security import verify_secret
 from app.modules.identity import service
 from app.modules.identity.models import AdminUser, Role
-from app.modules.identity.schemas import RefreshRequest
+from app.modules.identity.schemas import RefreshRequest, TokenPair
+from app.modules.staff import service as staff_service
+from app.modules.staff.schemas import AdminUserOut, RoleOut
 
 router = APIRouter(prefix="/admin", tags=["admin-auth"])
 
@@ -19,28 +22,20 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AdminTokens(BaseModel):
-    access_token: str
-    refresh_token: str
+class AdminLoginResult(TokenPair):
+    # The panel renders its menu from the user's permissions; the server checks
+    # them again on every call regardless.
+    user: AdminUserOut
 
 
-class AdminProfile(BaseModel):
-    login: str
-    full_name: str
-    role: str
-    permissions: list[str]
+def _expires_in() -> int:
+    return get_settings().access_token_ttl_minutes * 60
 
 
-class RoleOut(BaseModel):
-    code: str
-    name: str
-    permissions: list[str]
-
-
-@router.post("/auth/login", response_model=AdminTokens)
+@router.post("/auth/login", response_model=AdminLoginResult)
 async def login(
     payload: LoginRequest, session: AsyncSession = Depends(get_session)
-) -> AdminTokens:
+) -> AdminLoginResult:
     admin = await session.scalar(select(AdminUser).where(AdminUser.login == payload.login))
     # An unknown login and a wrong password answer identically, so the endpoint
     # cannot be used to enumerate who works here.
@@ -49,20 +44,27 @@ async def login(
     if not admin.is_active:
         raise AppError(ErrorCode.ADMIN_ACCOUNT_BLOCKED, "Account is inactive.", 403)
 
+    # Stamped here rather than in the token middleware: an access token minted an
+    # hour ago is not a sign that anybody is at the keyboard.
+    admin.last_login_at = utcnow()
     access, refresh = await service.issue_token_pair(session, "admin", admin.id)
     await session.commit()
-    return AdminTokens(access_token=access, refresh_token=refresh)
+    return AdminLoginResult(
+        access_token=access, refresh_token=refresh, expires_in=_expires_in(),
+        user=staff_service.admin_out(admin),
+    )
 
 
-@router.post("/auth/refresh", response_model=AdminTokens)
+@router.post("/auth/refresh", response_model=TokenPair)
 async def refresh(
     payload: RefreshRequest, session: AsyncSession = Depends(get_session)
-) -> AdminTokens:
+) -> TokenPair:
     access, rotated = await service.rotate_refresh_token(
         session, payload.refresh_token, "admin"
     )
     await session.commit()
-    return AdminTokens(access_token=access, refresh_token=rotated)
+    return TokenPair(access_token=access, refresh_token=rotated,
+                     expires_in=_expires_in())
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -74,14 +76,9 @@ async def logout(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/auth/me", response_model=AdminProfile)
-async def me(admin: AdminUser = Depends(require_admin)) -> AdminProfile:
-    return AdminProfile(
-        login=admin.login,
-        full_name=admin.full_name,
-        role=admin.role.code,
-        permissions=admin.role.permissions or [],
-    )
+@router.get("/auth/me", response_model=AdminUserOut)
+async def me(admin: AdminUser = Depends(require_admin)) -> AdminUserOut:
+    return staff_service.admin_out(admin)
 
 
 @router.get("/roles", response_model=list[RoleOut])
@@ -90,4 +87,4 @@ async def list_roles(
     _: AdminUser = Depends(require_permission("roles.read")),
 ) -> list[RoleOut]:
     rows = await session.scalars(select(Role).order_by(Role.code))
-    return [RoleOut(code=r.code, name=r.name, permissions=r.permissions or []) for r in rows]
+    return [staff_service.role_out(row) for row in rows]

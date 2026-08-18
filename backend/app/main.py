@@ -7,6 +7,7 @@ from app.api.admin import custody as admin_custody
 from app.api.admin import dashboard as admin_dashboard
 from app.api.admin import postamats as admin_postamats
 from app.api.admin import tariffs as admin_tariffs
+from app.api.admin import users as admin_users
 from app.api.mobile import auth as mobile_auth
 from app.api.mobile import bookings as mobile_bookings
 from app.api.mobile import payments as mobile_payments
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_bookings.router, prefix=API_PREFIX)
     app.include_router(admin_custody.router, prefix=API_PREFIX)
     app.include_router(admin_dashboard.router, prefix=API_PREFIX)
+    app.include_router(admin_users.router, prefix=API_PREFIX)
     app.include_router(public_catalog.router, prefix=API_PREFIX)
     app.include_router(public_media.router, prefix=API_PREFIX)
     app.include_router(public_postamats.router, prefix=API_PREFIX)

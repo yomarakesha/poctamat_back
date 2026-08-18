@@ -49,6 +49,15 @@ class AdminUser(UUIDPrimaryKey, Timestamped, Base):
     role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("roles.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Which postamats this account may act on. Empty means the whole fleet —
+    # stored as a list rather than a join table because a role bound to two or
+    # three machines is the whole of the requirement, and a table would add a
+    # migration for every read.
+    postamat_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # Shown in the users list so an operator can see a dormant account. Written
+    # by the login route, not by the token middleware: an access token minted an
+    # hour ago is not a sign of life.
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     role: Mapped[Role] = relationship(lazy="joined")
 
