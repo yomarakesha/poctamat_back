@@ -128,11 +128,21 @@ class Cell(UUIDPrimaryKey, Timestamped, Base):
     number: Mapped[int] = mapped_column(Integer)
     row: Mapped[int | None] = mapped_column(Integer)
     col: Mapped[int | None] = mapped_column(Integer)
+    # A tall drawer occupies more than one grid square. Stored so the panel can
+    # draw the cabinet as it is rather than as a uniform grid it is not.
+    row_span: Mapped[int | None] = mapped_column(Integer)
+    col_span: Mapped[int | None] = mapped_column(Integer)
     board: Mapped[int] = mapped_column(Integer)
     output: Mapped[int] = mapped_column(Integer)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     is_maintenance: Mapped[bool] = mapped_column(Boolean, default=False)
     blocked_reason: Mapped[str | None] = mapped_column(String(500))
+    # When the cell last changed between free, blocked and maintenance. The
+    # monitor sorts by it, and «заблокирована 40 минут назад» is a different
+    # fact from «заблокирована в марте».
+    status_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
 
 class Tariff(UUIDPrimaryKey, Timestamped, Base):

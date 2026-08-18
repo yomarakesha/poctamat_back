@@ -115,13 +115,13 @@ modify `backend/app/modules/catalog/service.py`.
 
 **Files:** modify `backend/app/api/admin/cells.py`; tests.
 
-- [ ] `GET /admin/cells/{id}` — one cell with its current booking, if any.
-- [ ] `POST /admin/cells/bulk` at the contract's path and shape (ours lives elsewhere), answering
+- [x] `GET /admin/cells/{id}` — one cell with its current booking, if any.
+- [x] `POST /admin/cells/bulk` at the contract's path and shape (ours lives elsewhere), answering
       409 `CELL_NUMBER_DUPLICATE` / `HARDWARE_ADDRESS_DUPLICATE` / `LAYOUT_EXCEEDS_GRID`.
-- [ ] `POST /admin/cells/{id}/maintenance` `{is_maintenance, reason}`.
-- [ ] `POST /admin/cells/{id}/remote-open` — permission checked, audit entry written, 503
+- [x] `POST /admin/cells/{id}/maintenance` `{is_maintenance, reason}`.
+- [x] `POST /admin/cells/{id}/remote-open` — permission checked, audit entry written, 503
       `DEVICE_OFFLINE` (D4).
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 5: Devices
 
