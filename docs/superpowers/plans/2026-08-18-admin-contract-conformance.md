@@ -128,11 +128,11 @@ modify `backend/app/modules/catalog/service.py`.
 **Files:** create `backend/app/api/admin/devices.py`, `backend/tests/admin/test_devices.py`;
 modify `backend/app/modules/catalog/models.py` if the provisioning code needs storing; migration.
 
-- [ ] `GET /admin/devices`, `GET /admin/devices/{id}` — the contract's `Device`, with
+- [x] `GET /admin/devices`, `GET /admin/devices/{id}` — the contract's `Device`, with
       `last_seen_at` and a derived `status`.
-- [ ] `POST /admin/devices/{id}/provisioning-code` → a short-lived code, returned once, stored as a
+- [x] `POST /admin/devices/{id}/provisioning-code` → a short-lived code, returned once, stored as a
       digest. Reissuing kills the previous one, for the same reason code rotation does.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 6: Statistics
 

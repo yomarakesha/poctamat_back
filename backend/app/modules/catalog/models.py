@@ -3,6 +3,7 @@ from datetime import datetime, time
 from enum import StrEnum
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     ForeignKey,
@@ -175,3 +176,20 @@ class Device(UUIDPrimaryKey, Timestamped, Base):
     agent_version: Mapped[str | None] = mapped_column(String(32))
     ip_address: Mapped[str | None] = mapped_column(String(45))
     mac_address: Mapped[str | None] = mapped_column(String(17))
+    os_version: Mapped[str | None] = mapped_column(String(64))
+    # The client certificate the agent will authenticate with. Stored so the
+    # panel can warn before it lapses rather than after the cabinet goes quiet.
+    certificate_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    on_battery: Mapped[bool | None] = mapped_column(Boolean)
+    tamper_detected: Mapped[bool | None] = mapped_column(Boolean)
+    # Doors the agent could not move. Kept on the device rather than on the cell,
+    # because it is the agent reporting what it saw, not an operator's decision.
+    jammed_cell_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # The one-time code a fresh Raspberry Pi presents to claim this postamat.
+    # Only the digest: a provisioning code is a credential.
+    provisioning_code_hash: Mapped[str | None] = mapped_column(String(64))
+    provisioning_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
