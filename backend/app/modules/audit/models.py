@@ -30,3 +30,6 @@ class AuditEntry(UUIDPrimaryKey, Timestamped, Base):
     postamat_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
     cell_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
     details: Mapped[dict | None] = mapped_column(JSON)
+    # Ties this row to the request that caused it, so a support ticket quoting
+    # one trace id finds the journal entry as well as the error.
+    trace_id: Mapped[str | None] = mapped_column(String(36), index=True)

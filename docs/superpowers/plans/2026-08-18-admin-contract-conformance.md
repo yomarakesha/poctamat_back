@@ -139,15 +139,15 @@ modify `backend/app/modules/catalog/models.py` if the provisioning code needs st
 **Files:** create `backend/app/modules/stats/service.py`, `backend/app/api/admin/stats.py`,
 `backend/tests/admin/test_stats.py`; delete `backend/app/api/admin/dashboard.py`.
 
-- [ ] `GET /admin/stats/attention` — D2's payload, replacing `/admin/dashboard/attention`.
-- [ ] `GET /admin/stats/overview` — postamat, cell, occupied, booked, blocked, maintenance counts.
-- [ ] `GET /admin/stats/bookings?period=` — the histogram behind the «7 дней» selector.
-- [ ] `GET /admin/stats/utilization`, `/peak-hours`, `/revenue` — the contract's shapes. Revenue
+- [x] `GET /admin/stats/attention` — D2's payload, replacing `/admin/dashboard/attention`.
+- [x] `GET /admin/stats/overview` — postamat, cell, occupied, booked, blocked, maintenance counts.
+- [x] `GET /admin/stats/bookings?period=` — the histogram behind the «7 дней» selector.
+- [x] `GET /admin/stats/utilization`, `/peak-hours`, `/revenue` — the contract's shapes. Revenue
       counts settled payments only; a pending session is not money.
-- [ ] `GET /admin/stats/recent-events`, `/recent-bookings`.
-- [ ] Every aggregate is one query, and a test asserts the count of statements for the dashboard's
+- [x] `GET /admin/stats/recent-events`, `/recent-bookings`.
+- [x] Every aggregate is one query, and a test asserts the count of statements for the dashboard's
       full set — six screens' worth of tiles must not become sixty round trips.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 7: Audit log
 

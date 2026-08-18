@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.context import get_trace_id
 from app.modules.audit.models import AuditEntry, Severity, Source
 
 
@@ -18,6 +19,7 @@ async def record(
     details: dict | None = None,
 ) -> AuditEntry:
     entry = AuditEntry(
+        trace_id=get_trace_id(),
         event=event,
         source=source,
         severity=severity,
