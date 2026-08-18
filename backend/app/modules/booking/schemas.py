@@ -1,37 +1,34 @@
 import uuid
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
-from app.core.config import get_settings
-from app.core.pagination import PageMeta
-from app.core.types import PhoneNumber, utc_isoformat
-from app.modules.booking.models import BookingStatus, CodePurpose, Depositor
+from app.core.pagination import CursorMeta, PageMeta
+from app.core.types import Money, PhoneNumber, utc_isoformat
+from app.modules.booking.models import BookingStatus, Depositor
+from app.modules.payments.models import PaymentStatus
 
 
 class BookingCreate(BaseModel):
     postamat_id: uuid.UUID
     cell_type_id: uuid.UUID
+    # Not validated against the tariff list here: an unpriced duration is
+    # answered with DURATION_NOT_SUPPORTED by the endpoint, which is the code the
+    # contract names and the app renders.
     duration_hours: int
-    recipient_phone: PhoneNumber
+    # Optional: omitting it is the «Пропустить» path, and means the sender will
+    # collect the parcel themselves.
+    recipient_phone: PhoneNumber | None = None
     recipient_name: str | None = Field(default=None, max_length=200)
-    depositor: Depositor = Depositor.OWNER
+    deposited_by: Depositor = Depositor.OWNER
     courier_phone: PhoneNumber | None = None
-
-    @field_validator("duration_hours")
-    @classmethod
-    def _known_duration(cls, value: int) -> int:
-        durations = get_settings().rental_durations
-        if value not in durations:
-            raise ValueError(f"duration_hours must be one of {list(durations)}")
-        return value
 
     @model_validator(mode="after")
     def _courier_comes_with_a_number(self) -> "BookingCreate":
-        # The courier's PIN is delivered by SMS. Without a number the code is
-        # issued to nobody, and the parcel waits for a courier who never got it.
-        if self.depositor is Depositor.COURIER and not self.courier_phone:
+        # The deposit code is delivered by SMS. Without a number it is issued to
+        # nobody, and the parcel waits for a courier who never got it.
+        if self.deposited_by is Depositor.COURIER and not self.courier_phone:
             raise ValueError("courier_phone is required when the courier deposits")
-        if self.depositor is Depositor.OWNER and self.courier_phone:
+        if self.deposited_by is Depositor.OWNER and self.courier_phone:
             raise ValueError("courier_phone is only for a courier deposit")
         return self
 
@@ -62,12 +59,6 @@ class BookingOut(BaseModel):
     expires_at: str | None
     created_at: str
     timeline: list[TimelineEntry]
-
-
-class BookingCreated(BookingOut):
-    # The only response that ever carries plaintext PINs. They are shown once,
-    # here, and exist as digests everywhere else.
-    codes: dict[CodePurpose, str]
 
 
 class BookingPage(BaseModel):
@@ -104,3 +95,83 @@ def booking_out(booking, cell_number: int) -> BookingOut:
 class CancelRequest(BaseModel):
     reason: str = Field(default="Отменено клиентом", min_length=1, max_length=500)
 
+
+
+# ── the client surface, in the front-end contract's names ────────────────────
+
+
+class PaymentBrief(BaseModel):
+    id: uuid.UUID
+    booking_id: uuid.UUID
+    status: PaymentStatus
+    amount: Money
+    bank_code: str
+    redirect_url: str | None
+    expires_at: str | None
+    failure_code: str | None
+    created_at: str
+
+
+class BookingListItem(BaseModel):
+    id: uuid.UUID
+    status: BookingStatus
+    postamat_id: uuid.UUID
+    postamat_name: str
+    # A string, because a door label is not arithmetic.
+    cell_number: str
+    cell_type_name: str
+    created_at: str
+    expires_at: str | None
+
+
+class BookingDetail(BookingListItem):
+    postamat_address: str
+    cell_id: uuid.UUID
+    duration_hours: int
+    price: Money
+    recipient_phone: str | None
+    recipient_name: str | None
+    # `depositor` in the database, `deposited_by` on the wire. The rename stops
+    # here rather than in a migration.
+    deposited_by: Depositor
+    courier_phone: str | None
+    hold_expires_at: str | None
+    # Filled only by the response that issues it — creation and rotation. Every
+    # other read is null: the server keeps a keyed hash and cannot produce the
+    # digits again.
+    deposit_code: str | None
+    pickup_code_sent_at: str | None
+    qr_payload: str | None
+    payment: PaymentBrief | None
+    # Server time this payload was produced. The app stores it with the offline
+    # copy and shows «данные на такое-то время» when there is no network.
+    cached_at: str
+
+
+class BookingCursorPage(BaseModel):
+    items: list[BookingListItem]
+    pagination: CursorMeta
+
+
+class TimelineStep(BaseModel):
+    step: str
+    # Null means it has not happened; the app greys the row out and keeps the
+    # order, which is why every step is returned whether or not it occurred.
+    occurred_at: str | None
+    actor: str | None
+
+
+class Timeline(BaseModel):
+    items: list[TimelineStep]
+
+
+class CodeIssued(BaseModel):
+    code: str
+    expires_at: str | None
+    # Seconds before this booking may ask for another code.
+    resend_after: int
+
+
+class TransferRequest(BaseModel):
+    new_phone: PhoneNumber
+    new_name: str | None = Field(default=None, max_length=200)

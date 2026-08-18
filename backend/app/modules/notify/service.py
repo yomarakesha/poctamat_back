@@ -27,17 +27,38 @@ TEMPLATES: dict[tuple[NotificationKind, str], tuple[str, str, str]] = {
         "Login code", "A one-time code has been sent by SMS.",
         "Postamat: login code {code}",
     ),
-    (NotificationKind.COURIER_CODE, "tk"): (
+    (NotificationKind.DEPOSIT_CODE, "tk"): (
         "Kuryer kody", "Kuryere kod iberildi.",
         "Postamat: ýaçeýka {cell_number} üçin kod {code}",
     ),
-    (NotificationKind.COURIER_CODE, "ru"): (
+    (NotificationKind.DEPOSIT_CODE, "ru"): (
         "Код курьера", "Код отправлен курьеру.",
         "Постамат: код {code} для ячейки {cell_number}",
     ),
-    (NotificationKind.COURIER_CODE, "en"): (
-        "Courier code", "The code has been sent to the courier.",
+    (NotificationKind.DEPOSIT_CODE, "en"): (
+        "Deposit code", "The deposit code has been sent.",
         "Postamat: code {code} for cell {cell_number}",
+    ),
+    (NotificationKind.PICKUP_CODE_SENT, "tk"): (
+        "Almak kody", "Almak kody SMS bilen iberildi.",
+        "Postamat: ýaçeýka {cell_number} açmak üçin kod {code}",
+    ),
+    (NotificationKind.PICKUP_CODE_SENT, "ru"): (
+        "Код получения", "Код получения отправлен по SMS.",
+        "Постамат: код {code} для получения из ячейки {cell_number}",
+    ),
+    (NotificationKind.PICKUP_CODE_SENT, "en"): (
+        "Pickup code", "The pickup code has been sent by SMS.",
+        "Postamat: code {code} to collect from cell {cell_number}",
+    ),
+    (NotificationKind.PICKUP_TRANSFERRED, "tk"): (
+        "Almak hukugy geçirildi", "Ýaçeýka {cell_number}: almak hukugy geçirildi.", "",
+    ),
+    (NotificationKind.PICKUP_TRANSFERRED, "ru"): (
+        "Право получения передано", "Ячейка {cell_number}: получатель изменён.", "",
+    ),
+    (NotificationKind.PICKUP_TRANSFERRED, "en"): (
+        "Pickup transferred", "Cell {cell_number}: the recipient has changed.", "",
     ),
     (NotificationKind.BOOKING_PAID, "tk"): (
         "Töleg kabul edildi", "Ýaçeýka {cell_number}: ibermäni goýup bilersiňiz.", "",

@@ -48,7 +48,7 @@ async def test_a_repeated_request_returns_the_first_booking_and_one_cell(
     assert first.status_code == 201
     assert second.status_code == 201
     assert second.json()["id"] == first.json()["id"]
-    assert second.json()["codes"] == first.json()["codes"]
+    assert second.json()["deposit_code"] == first.json()["deposit_code"]
 
     availability = await client.get(f"/api/v1/postamats/{postamat.id}/availability")
     assert availability.json()["items"][0]["free"] == 1

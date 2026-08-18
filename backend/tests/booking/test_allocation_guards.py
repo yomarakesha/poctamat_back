@@ -47,7 +47,7 @@ async def test_a_cell_the_index_refuses_is_reported_as_sold_out(
 
     with pytest.raises(AppError) as caught:
         await create_booking(session, **_args(postamat, cell_type))
-    assert caught.value.code == ErrorCode.SIZE_SOLD_OUT
+    assert caught.value.code == ErrorCode.NO_FREE_CELLS
     assert caught.value.status_code == 409
 
 

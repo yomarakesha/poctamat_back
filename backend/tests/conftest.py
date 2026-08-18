@@ -205,3 +205,32 @@ def book(client, client_token):
         })
 
     return _book
+
+
+@pytest.fixture
+def post_action(client, client_token):
+    """POST one of the booking's state-changing actions, with a fresh key.
+
+    Cancel, extend-hold and both rotations all require `Idempotency-Key`: they
+    move a booking or mint a code, and a retried request must not do it twice.
+    """
+    import uuid as _uuid
+
+    async def _post(booking_id, action, body=None, *, token=None, key=None):
+        return await client.post(
+            f"/api/v1/bookings/{booking_id}/{action}", json=body,
+            headers={
+                "Authorization": f"Bearer {token or client_token}",
+                "Idempotency-Key": key or str(_uuid.uuid4()),
+            },
+        )
+
+    return _post
+
+
+@pytest.fixture
+def cancel(post_action):
+    async def _cancel(booking_id, reason="передумал", **kwargs):
+        return await post_action(booking_id, "cancel", {"reason": reason}, **kwargs)
+
+    return _cancel

@@ -25,13 +25,13 @@ async def test_a_duration_outside_the_product_constant_is_rejected(
     client, session, book, admin_token, city, cell_type, postamat
 ):
     # 36 hours is not a thing a customer can buy, and a tariff for it cannot
-    # exist. Saying so at validation names the field instead of blaming pricing.
+    # exist. The contract names this refusal, so it answers with that code
+    # rather than a generic validation failure.
     await _ready(client, session, admin_token, city, cell_type, postamat)
     response = await book(_body(postamat, cell_type, duration_hours=36))
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
-    fields = [item["field"] for item in response.json()["error"]["details"]["fields"]]
-    assert "duration_hours" in fields
+    assert response.json()["error"]["code"] == "DURATION_NOT_SUPPORTED"
+    assert response.json()["error"]["details"]["duration_hours"] == 36
 
 
 async def test_a_courier_booking_without_a_courier_phone_is_rejected(
@@ -40,7 +40,7 @@ async def test_a_courier_booking_without_a_courier_phone_is_rejected(
     # The courier's PIN is delivered by SMS. Accepting the booking without a
     # number means issuing a code that can never reach the person it is for.
     await _ready(client, session, admin_token, city, cell_type, postamat)
-    response = await book(_body(postamat, cell_type, depositor="courier"))
+    response = await book(_body(postamat, cell_type, deposited_by="courier"))
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_FAILED"
 
@@ -50,7 +50,7 @@ async def test_a_courier_phone_without_a_courier_is_rejected(
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat)
     response = await book(
-        _body(postamat, cell_type, depositor="owner", courier_phone="+99366000002")
+        _body(postamat, cell_type, deposited_by="owner", courier_phone="+99366000002")
     )
     assert response.status_code == 422
 
@@ -60,6 +60,6 @@ async def test_a_courier_booking_with_a_phone_is_accepted(
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat)
     response = await book(
-        _body(postamat, cell_type, depositor="courier", courier_phone="+99366000002")
+        _body(postamat, cell_type, deposited_by="courier", courier_phone="+99366000002")
     )
     assert response.status_code == 201

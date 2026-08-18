@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.db import utcnow, write_transaction
 from app.core.errors import AppError, ErrorCode
-from app.modules.booking.codes import issue_codes
+from app.modules.booking.codes import issue_code
 from app.modules.booking.models import (
     Booking,
     BookingEvent,
@@ -100,6 +100,18 @@ async def record_event(
     return event
 
 
+async def _ensure_codes(session: AsyncSession, booking: Booking) -> None:
+    """Load the grants before touching them.
+
+    Same trap as `events`: appending to an unloaded collection makes SQLAlchemy
+    load it first, and a lazy load inside async code raises MissingGreenlet
+    instead of loading.
+    """
+    state = inspect(booking)
+    if state.persistent and "codes" in state.unloaded:
+        await session.refresh(booking, ["codes"])
+
+
 async def _held_cell_ids(
     session: AsyncSession, postamat_id: uuid.UUID
 ) -> set[uuid.UUID]:
@@ -125,7 +137,7 @@ async def create_booking(
     recipient_name: str | None,
     depositor: Depositor,
     courier_phone: str | None,
-) -> tuple[Booking, dict[CodePurpose, str]]:
+) -> tuple[Booking, str]:
     """Take one free cell of a size and hold it.
 
     The allocation runs inside a transaction that took the write lock before
@@ -149,7 +161,7 @@ async def create_booking(
         await session.commit()
 
     booking: Booking | None = None
-    plaintext: dict[CodePurpose, str] = {}
+    deposit_code = ""
     try:
         async with write_transaction(session):
             taken = await _held_cell_ids(session, postamat_id)
@@ -170,7 +182,7 @@ async def create_booking(
                         utcnow() + timedelta(minutes=settings.hold_minutes)
                     ),
                 )
-                plaintext = issue_codes(booking)
+                deposit_code = issue_code(booking, CodePurpose.DEPOSIT)
                 session.add(booking)
                 await record_event(session, booking, BookingStatus.PENDING_PAYMENT,
                                    "Забронировано", step="booked")
@@ -184,11 +196,11 @@ async def create_booking(
 
     if booking is None:
         raise AppError(
-            ErrorCode.SIZE_SOLD_OUT,
+            ErrorCode.NO_FREE_CELLS,
             "No free cell of this size at this postamat.", 409,
             details={"cell_type_id": str(cell_type_id)},
         )
-    return booking, plaintext
+    return booking, deposit_code
 
 
 async def _move(
@@ -223,12 +235,25 @@ async def mark_paid(session: AsyncSession, booking: Booking) -> Booking:
 
 async def mark_deposited(
     session: AsyncSession, booking: Booking, postamat, moment: datetime | None = None,
-) -> Booking:
+) -> tuple[Booking, str]:
+    """Close the door on a parcel and issue the code that opens it again.
+
+    The pickup code exists from this moment and not before: issuing it at
+    booking time would put a live door code in somebody's hands for hours while
+    the cell was still empty. The caller sends it — that is where the recipient's
+    phone and language are known — and the plaintext is returned exactly once.
+    """
     at = moment or utcnow()
     booking.deposited_at = at
     booking.expires_at = storage_expiry(postamat, at, booking.duration_hours)
-    return await _move(session, booking, BookingStatus.AWAITING_PICKUP,
-                       "Посылка в ячейке", step="parcel_deposited")
+    await _ensure_codes(session, booking)
+    pickup_code = issue_code(booking, CodePurpose.PICKUP)
+    booking.pickup_code_sent_at = at
+    await _move(session, booking, BookingStatus.AWAITING_PICKUP,
+                "Посылка в ячейке", step="parcel_deposited")
+    await record_event(session, booking, BookingStatus.AWAITING_PICKUP,
+                       "Код получения отправлен", step="pickup_code_sent")
+    return booking, pickup_code
 
 
 async def mark_collected(
@@ -242,6 +267,36 @@ async def mark_collected(
 async def expire(session: AsyncSession, booking: Booking) -> Booking:
     return await _move(session, booking, BookingStatus.EXPIRED, "Срок хранения истёк",
                        step="expired")
+
+
+async def extend_hold(session: AsyncSession, booking: Booking) -> Booking:
+    """Push the payment hold out once more.
+
+    The case is a client still on the bank's 3-D Secure page when the ten
+    minutes run out. The cell stays theirs, but not indefinitely: past the limit
+    the hold dies and the cell goes back on the market.
+    """
+    settings = get_settings()
+    if booking.status != BookingStatus.PENDING_PAYMENT:
+        raise AppError(ErrorCode.BOOKING_ALREADY_PAID,
+                       "This booking is no longer waiting for payment.", 409)
+    if booking.hold_expires_at is None or as_utc(booking.hold_expires_at) <= utcnow():
+        raise AppError(ErrorCode.BOOKING_HOLD_EXPIRED, "The hold has already run out.",
+                       409)
+    if booking.hold_extensions >= settings.hold_extensions_max:
+        raise AppError(
+            ErrorCode.HOLD_EXTENSION_LIMIT_EXCEEDED,
+            "This hold cannot be extended again.", 409,
+            details={"limit": settings.hold_extensions_max},
+        )
+
+    booking.hold_extensions += 1
+    booking.hold_expires_at = as_utc(booking.hold_expires_at) + timedelta(
+        minutes=settings.hold_minutes
+    )
+    await record_event(session, booking, booking.status, "Бронь продлена",
+                       details={"extension": booking.hold_extensions})
+    return booking
 
 
 async def to_grace(session: AsyncSession, booking: Booking) -> Booking:

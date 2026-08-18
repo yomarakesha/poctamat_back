@@ -62,7 +62,7 @@ async def test_only_one_of_ten_parallel_bookings_takes_the_last_cell(
     results = await asyncio.gather(*(attempt() for _ in range(10)))
 
     assert results.count("won") == 1
-    assert set(results) == {"won", "SIZE_SOLD_OUT"}
+    assert set(results) == {"won", "NO_FREE_CELLS"}
 
     async with maker() as check:
         held = await check.scalar(

@@ -60,9 +60,12 @@ async def test_paying_moves_the_booking_and_clears_the_hold(
     detail = await client.get(f"/api/v1/bookings/{booking['id']}", headers=headers)
     assert detail.json()["status"] == BookingStatus.AWAITING_DEPOSIT
     assert detail.json()["hold_expires_at"] is None
-    assert [event["step"] for event in detail.json()["timeline"]] == [
-        "booked", "paid", None,
-    ]
+
+    timeline = await client.get(f"/api/v1/bookings/{booking['id']}/timeline",
+                                headers=headers)
+    happened = {item["step"] for item in timeline.json()["items"]
+                if item["occurred_at"]}
+    assert happened == {"booked", "paid"}
 
 
 async def test_the_same_webhook_twice_settles_once(
@@ -80,10 +83,13 @@ async def test_the_same_webhook_twice_settles_once(
                                headers=hook_headers)
     assert (first.status_code, second.status_code) == (200, 200)
 
-    detail = await client.get(f"/api/v1/bookings/{booking['id']}", headers=headers)
-    # Not five entries: the second delivery must not walk the booking through
-    # paid a second time.
-    assert len(detail.json()["timeline"]) == 3
+    timeline = await client.get(f"/api/v1/bookings/{booking['id']}/timeline",
+                                headers=headers)
+    # Paid once, not twice: the second delivery must not walk the booking
+    # through payment again.
+    happened = [item["step"] for item in timeline.json()["items"]
+                if item["occurred_at"]]
+    assert happened == ["booked", "paid"]
 
 
 async def test_an_unsigned_webhook_is_refused(client):

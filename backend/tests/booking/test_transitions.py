@@ -58,10 +58,14 @@ async def test_deposit_starts_the_storage_clock_at_the_next_opening(session, pos
     await session.flush()
 
     deposited = datetime(2026, 8, 17, 19, 0, tzinfo=timezone.utc)
-    await mark_deposited(session, booking, postamat, moment=deposited)
+    _, pickup_code = await mark_deposited(session, booking, postamat, moment=deposited)
 
     assert booking.status == BookingStatus.AWAITING_PICKUP
     assert booking.deposited_at == deposited
+    # The pickup code exists from this moment and not before: it opens a door
+    # with a parcel behind it.
+    assert len(pickup_code) == 5
+    assert booking.pickup_code_sent_at == deposited
     assert booking.expires_at == datetime(2026, 8, 18, 8, 0, tzinfo=timezone.utc)
 
 

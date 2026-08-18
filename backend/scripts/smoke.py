@@ -341,7 +341,8 @@ async def main() -> int:
                 )
                 await call(
                     client, "POST", f"/api/v1/bookings/{created['id']}/cancel",
-                    headers=bearer, json={"reason": "smoke run"},
+                    headers=bearer | {"Idempotency-Key": "smoke-cancel-1"},
+                    json={"reason": "smoke run"},
                 )
                 after = await call(
                     client, "GET", f"/api/v1/postamats/{postamat_id}/availability"

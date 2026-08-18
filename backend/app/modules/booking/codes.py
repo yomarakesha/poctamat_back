@@ -19,22 +19,13 @@ def _digits(length: int) -> str:
     return "".join(secrets.choice("0123456789") for _ in range(length))
 
 
-def issue_codes(booking: Booking) -> dict[CodePurpose, str]:
-    """Create one code per purpose and return the plaintext to show once."""
-    length = get_settings().pin_length
-    plaintext: dict[CodePurpose, str] = {}
-    for purpose in CodePurpose:
-        code = _digits(length)
-        plaintext[purpose] = code
-        booking.codes.append(AccessCode(purpose=purpose, code_hash=hash_pin(code)))
-    return plaintext
-
-
-def reissue_code(booking: Booking, purpose: CodePurpose) -> str:
-    """Replace one code — the courier's PIN, when the SMS never arrived.
+def issue_code(booking: Booking, purpose: CodePurpose) -> str:
+    """Issue the grant for one purpose, replacing whatever it had before.
 
     The old digest is overwritten rather than left beside the new one, so a code
-    that went to the wrong number stops working the moment it is resent.
+    that went to the wrong number stops working the moment a fresh one is sent.
+    Codes are issued when they become usable, not all at once: the deposit code
+    at booking, the pickup code when the parcel is actually inside.
     """
     code = _digits(get_settings().pin_length)
     for existing in booking.codes:

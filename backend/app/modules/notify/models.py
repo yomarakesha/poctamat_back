@@ -15,7 +15,11 @@ class NotificationChannel(StrEnum):
 
 class NotificationKind(StrEnum):
     OTP = "otp"
-    COURIER_CODE = "courier_code"
+    # The grant that opens an empty cell. A courier gets this one and only this
+    # one, which is why it is named for the act rather than for who carries it.
+    DEPOSIT_CODE = "deposit_code"
+    PICKUP_CODE_SENT = "pickup_code_sent"
+    PICKUP_TRANSFERRED = "pickup_transferred"
     BOOKING_PAID = "booking_paid"
     BOOKING_EXPIRING = "booking_expiring"
     BOOKING_EXPIRED = "booking_expired"

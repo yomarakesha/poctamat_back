@@ -46,29 +46,26 @@ async def _ready(client, session, admin_token, city, cell_type, postamat):
                      ]})
 
 
-async def test_the_courier_pin_is_sent_and_no_longer_returned(
-    client, session, book, client_token, admin_token, city, cell_type, postamat
+async def test_the_deposit_code_goes_to_the_courier_by_sms(
+    client, session, book, admin_token, city, cell_type, postamat
 ):
     await _ready(client, session, admin_token, city, cell_type, postamat)
     created = await book({
         "postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
         "duration_hours": 24, "recipient_phone": "+99365000001",
-        "depositor": "courier", "courier_phone": "+99366000002",
+        "deposited_by": "courier", "courier_phone": "+99366000002",
     })
-    booking_id = created.json()["id"]
-
-    resent = await client.post(f"/api/v1/bookings/{booking_id}/courier/resend",
-                               headers={"Authorization": f"Bearer {client_token}"})
-    assert resent.status_code == 202
-    assert resent.content in (b"", b"null")
+    assert created.status_code == 201
 
     last = get_sms_provider().outbox[-1]
     assert last.phone == "+99366000002"
-    assert "1" in last.text  # a five-digit code is in there somewhere
+    # The sender sees the digits too — they read them out when the SMS does not
+    # arrive — but only in this one response.
+    assert created.json()["deposit_code"] in last.text
 
 
-async def test_the_resent_code_is_the_one_that_opens_the_door(
-    client, session, book, client_token, admin_token, city, cell_type, postamat
+async def test_rotating_kills_the_old_deposit_code(
+    client, session, book, post_action, admin_token, city, cell_type, postamat
 ):
     import re
 
@@ -78,14 +75,63 @@ async def test_the_resent_code_is_the_one_that_opens_the_door(
     created = await book({
         "postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
         "duration_hours": 24, "recipient_phone": "+99365000001",
-        "depositor": "courier", "courier_phone": "+99366000002",
+        "deposited_by": "courier", "courier_phone": "+99366000002",
     })
-    original = created.json()["codes"]["courier"]
+    original = created.json()["deposit_code"]
 
-    await client.post(f"/api/v1/bookings/{created.json()['id']}/courier/resend",
-                      headers={"Authorization": f"Bearer {client_token}"})
+    rotated = await post_action(created.json()["id"], "deposit-code/rotate")
+    assert rotated.status_code == 200
+    assert rotated.json()["resend_after"] == 60
 
     texted = re.search(r"\d{5}", get_sms_provider().outbox[-1].text).group()
-    assert texted != original
+    assert texted == rotated.json()["code"] != original
+    # A code that was forwarded to the wrong person stops working the moment the
+    # sender asks for another.
     assert await find_code(session, postamat.id, original) is None
     assert await find_code(session, postamat.id, texted) is not None
+
+
+async def test_rotating_twice_in_a_row_is_refused(
+    client, session, book, post_action, admin_token, city, cell_type, postamat
+):
+    await _ready(client, session, admin_token, city, cell_type, postamat)
+    created = await book({
+        "postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
+        "duration_hours": 24, "recipient_phone": "+99365000001",
+        "deposited_by": "courier", "courier_phone": "+99366000002",
+    })
+
+    await post_action(created.json()["id"], "deposit-code/rotate")
+    again = await post_action(created.json()["id"], "deposit-code/rotate")
+    assert again.status_code == 429
+    assert again.json()["error"]["code"] == "CODE_RESEND_TOO_SOON"
+
+
+async def test_rotating_to_a_new_number_moves_the_courier(
+    client, session, book, post_action, admin_token, city, cell_type, postamat
+):
+    await _ready(client, session, admin_token, city, cell_type, postamat)
+    created = await book({
+        "postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
+        "duration_hours": 24, "recipient_phone": "+99365000001",
+        "deposited_by": "courier", "courier_phone": "+99366000002",
+    })
+
+    rotated = await post_action(created.json()["id"], "deposit-code/rotate",
+                                {"phone": "+99366000003"})
+    assert rotated.status_code == 200
+    assert get_sms_provider().outbox[-1].phone == "+99366000003"
+
+
+async def test_the_pickup_code_cannot_be_rotated_before_the_parcel_is_in(
+    client, session, book, post_action, admin_token, city, cell_type, postamat
+):
+    await _ready(client, session, admin_token, city, cell_type, postamat)
+    created = await book({
+        "postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
+        "duration_hours": 24, "recipient_phone": "+99365000001",
+    })
+
+    response = await post_action(created.json()["id"], "pickup-code/rotate")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "PICKUP_CODE_NOT_ISSUED_YET"

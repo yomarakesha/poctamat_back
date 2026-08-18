@@ -170,46 +170,46 @@ value and the row id, so a row added between two pages cannot make one item appe
 
 **Files:** modify `backend/app/modules/booking/schemas.py`, `app/api/mobile/bookings.py`; tests.
 
-- [ ] `BookingListItem`: `{id, status, postamat_id, postamat_name, cell_number (string),
+- [x] `BookingListItem`: `{id, status, postamat_id, postamat_name, cell_number (string),
       cell_type_name, created_at, expires_at}`.
-- [ ] `Booking` adds `{postamat_address, cell_id, duration_hours, price: Money, recipient_phone,
+- [x] `Booking` adds `{postamat_address, cell_id, duration_hours, price: Money, recipient_phone,
       recipient_name, deposited_by, courier_phone, hold_expires_at, deposit_code, pickup_code_sent_at,
       qr_payload, payment}`.
-- [ ] `GET /bookings?scope=active|history` with cursor pagination.
-- [ ] `POST /bookings` answers `Booking` with `deposit_code` filled (C4) and no `codes` map.
+- [x] `GET /bookings?scope=active|history` with cursor pagination.
+- [x] `POST /bookings` answers `Booking` with `deposit_code` filled (C4) and no `codes` map.
       `recipient_phone` is optional; equal to the sender's phone answers 422
       `RECIPIENT_PHONE_SAME_AS_SENDER`; an unpriced duration answers 422 `DURATION_NOT_SUPPORTED`;
       a sold-out size answers 409 `NO_FREE_CELLS`.
-- [ ] `POST /bookings/{id}/cancel` answers the `Booking`, with 409 `BOOKING_NOT_CANCELLABLE` /
+- [x] `POST /bookings/{id}/cancel` answers the `Booking`, with 409 `BOOKING_NOT_CANCELLABLE` /
       `BOOKING_ALREADY_CANCELLED`.
-- [ ] `POST /bookings/{id}/extend-hold`: pushes `hold_expires_at` by `hold_minutes`, at most
+- [x] `POST /bookings/{id}/extend-hold`: pushes `hold_expires_at` by `hold_minutes`, at most
       `hold_extensions_max` times (a new setting, default 2), answering 409
       `HOLD_EXTENSION_LIMIT_EXCEEDED`, `BOOKING_HOLD_EXPIRED`, `BOOKING_ALREADY_PAID`.
-- [ ] `GET /bookings/{id}/timeline` returns every step of
+- [x] `GET /bookings/{id}/timeline` returns every step of
       `booked, paid, parcel_deposited, pickup_code_sent, collected, expired, cancelled` in that
       order, with `occurred_at: null` for the ones that have not happened.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 8: Access codes
 
 **Files:** modify `backend/app/modules/booking/codes.py`, `models.py`, `app/api/mobile/bookings.py`;
 migration if `CodePurpose` changes; tests.
 
-- [ ] `CodePurpose` keeps `deposit` and `pickup`; `courier` is gone (C4) — the deposit code is what
+- [x] `CodePurpose` keeps `deposit` and `pickup`; `courier` is gone (C4) — the deposit code is what
       a courier gets, sent to `courier_phone` when one is set.
-- [ ] Booking creation issues only the deposit code. The pickup code is issued when the parcel is
+- [x] Booking creation issues only the deposit code. The pickup code is issued when the parcel is
       deposited (`mark_deposited`) and SMS'd to the recipient, stamping `pickup_code_sent_at`.
-- [ ] `POST /bookings/{id}/deposit-code/rotate` → `{code, expires_at, resend_after}`, optional
+- [x] `POST /bookings/{id}/deposit-code/rotate` → `{code, expires_at, resend_after}`, optional
       `phone` override which also updates `courier_phone`; 409 `GRANT_ALREADY_USED` once the parcel
       is in.
-- [ ] `POST /bookings/{id}/pickup-code/rotate` → same shape; 409 `PICKUP_CODE_NOT_ISSUED_YET`
+- [x] `POST /bookings/{id}/pickup-code/rotate` → same shape; 409 `PICKUP_CODE_NOT_ISSUED_YET`
       before the deposit.
-- [ ] `POST /bookings/{id}/pickup-code/transfer` `{new_phone, new_name}` → `Booking`; 422
+- [x] `POST /bookings/{id}/pickup-code/transfer` `{new_phone, new_name}` → `Booking`; 422
       `TRANSFER_PHONE_SAME`.
-- [ ] Both rotations are rate-limited per booking: 429 `CODE_RESEND_TOO_SOON` inside
+- [x] Both rotations are rate-limited per booking: 429 `CODE_RESEND_TOO_SOON` inside
       `resend_after` seconds.
-- [ ] `/bookings/{id}/courier/resend` is deleted.
-- [ ] Suite green, commit.
+- [x] `/bookings/{id}/courier/resend` is deleted.
+- [x] Suite green, commit.
 
 ### Task 9: Payment sessions
 

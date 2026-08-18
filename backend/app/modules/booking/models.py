@@ -50,8 +50,9 @@ class Depositor(StrEnum):
 
 
 class CodePurpose(StrEnum):
+    # Two grants, not three. A courier gets the deposit code — that is what the
+    # deposit code is for — sent to `courier_phone` instead of the sender's.
     DEPOSIT = "deposit"
-    COURIER = "courier"
     PICKUP = "pickup"
 
 
@@ -97,6 +98,15 @@ class Booking(UUIDPrimaryKey, Timestamped, Base):
     # Stamped when the "your storage ends soon" message goes out, so a worker
     # running every five minutes does not send it every five minutes.
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the pickup code last went out by SMS. Null until the parcel is inside:
+    # there is nothing to collect before that, and the app greys the step out.
+    pickup_code_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    # Counted rather than derived from the timeline: the hold may be extended a
+    # fixed number of times, and reading that off events would break the moment
+    # an unrelated event learns to write the same step.
+    hold_extensions: Mapped[int] = mapped_column(Integer, default=0)
 
     events: Mapped[list["BookingEvent"]] = relationship(
         back_populates="booking", lazy="selectin", cascade="all, delete-orphan",

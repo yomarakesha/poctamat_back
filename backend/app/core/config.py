@@ -27,9 +27,16 @@ class Settings(BaseSettings):
     otp_ttl_seconds: int = 300
     otp_max_attempts: int = 5
     otp_resend_seconds: int = 60
+    # Per booking, per grant. Rotation mints a new code and kills the old one,
+    # so an unthrottled button is a way to invalidate a courier's PIN repeatedly.
+    code_resend_seconds: int = 60
 
     pin_length: int = 5
     hold_minutes: int = 10
+    # How often the payment hold may be pushed out. The case is a client stuck
+    # on the bank's 3-D Secure page; beyond a couple of tries the cell has been
+    # off the market long enough.
+    hold_extensions_max: int = 2
     offline_ttl_hours: int = 24
 
     # Payments. The provider is named rather than imported, so the mock and the

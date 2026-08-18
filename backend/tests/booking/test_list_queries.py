@@ -49,7 +49,9 @@ async def test_the_client_list_reads_cells_once_not_once_per_booking(
                               headers={"Authorization": f"Bearer {client_token}"})
 
     assert len(listed.json()["items"]) == 5
-    assert {item["cell_number"] for item in listed.json()["items"]} == {1, 2, 3, 4, 5}
+    assert {item["cell_number"] for item in listed.json()["items"]} == {
+        "1", "2", "3", "4", "5"
+    }
     # One query for the page of cells. A per-row lookup is what turns a list of
     # twenty bookings into twenty round trips.
     assert len(count_cell_queries) == 1
