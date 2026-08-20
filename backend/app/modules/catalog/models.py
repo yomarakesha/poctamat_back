@@ -72,7 +72,16 @@ class Postamat(UUIDPrimaryKey, Timestamped, Base):
     status: Mapped[PostamatStatus] = mapped_column(
         String(16), default=PostamatStatus.ACTIVE
     )
+    blocked_reason: Mapped[str | None] = mapped_column(String(500))
     round_the_clock: Mapped[bool] = mapped_column(Boolean, default=False)
+    # What the operator typed for the table cell. The schedule rows below are
+    # what the system enforces; this is what a human reads, and the two are kept
+    # apart because «по будням» is not a rule anything can check.
+    working_hours: Mapped[str | None] = mapped_column(String(64))
+    # The shape of the cabinet, so the panel can draw the grid before a single
+    # cell exists and so bulk creation knows what it is filling.
+    grid_rows: Mapped[int | None] = mapped_column(Integer)
+    grid_cols: Mapped[int | None] = mapped_column(Integer)
 
     schedule: Mapped[list["PostamatSchedule"]] = relationship(
         back_populates="postamat", lazy="selectin", cascade="all, delete-orphan"

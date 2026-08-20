@@ -51,7 +51,9 @@ def photos_out(postamat: Postamat) -> list["PhotoOut"]:
 
 
 class ScheduleSlotIn(BaseModel):
-    weekday: int = Field(ge=0, le=6)  # 0 = Monday
+    # 1 = Monday on the wire, as the contract numbers it; storage counts from 0
+    # because `datetime.weekday()` does, and the conversion happens in one place.
+    weekday: int = Field(ge=1, le=7)
     opens_at: time
     closes_at: time
 
@@ -67,20 +69,49 @@ class ScheduleSlotIn(BaseModel):
 
 
 class SchedulePut(BaseModel):
-    slots: list[ScheduleSlotIn]
+    round_the_clock: bool = False
+    # `days` rather than `slots`, and ignored entirely when the machine stands in
+    # a lobby that never closes.
+    days: list[ScheduleSlotIn] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _one_slot_per_weekday(self) -> "SchedulePut":
-        days = [slot.weekday for slot in self.slots]
-        if len(days) != len(set(days)):
+        weekdays = [slot.weekday for slot in self.days]
+        if len(weekdays) != len(set(weekdays)):
             raise ValueError("each weekday may appear at most once")
         return self
 
 
 class ScheduleSlotOut(BaseModel):
     weekday: int
-    opens_at: time
-    closes_at: time
+    # `HH:MM` strings rather than times: Pydantic renders a `time` as
+    # `08:00:00`, and the contract's pattern is four digits and a colon.
+    opens_at: str
+    closes_at: str
+
+
+class ScheduleOut(BaseModel):
+    round_the_clock: bool
+    days: list[ScheduleSlotOut]
+
+
+class GeoPoint(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+class DeviceInline(BaseModel):
+    """The IP and MAC the admin form edits inline.
+
+    The device is its own resource with its own endpoints; this exists because
+    the postamat form on screen has two fields for it and making the operator
+    save twice would be a worse lie about how the two are related.
+    """
+
+    ip_address: str | None = Field(default=None, max_length=45)
+    mac_address: str | None = Field(
+        default=None, pattern=r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"
+    )
 
 
 class PostamatIn(BaseModel):
@@ -88,17 +119,24 @@ class PostamatIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     city_id: uuid.UUID
     address: str = Field(min_length=1, max_length=500)
-    latitude: float | None = Field(default=None, ge=-90, le=90)
-    longitude: float | None = Field(default=None, ge=-180, le=180)
+    location: GeoPoint | None = None
+    working_hours: str | None = Field(default=None, max_length=64)
+    grid_rows: int | None = Field(default=None, ge=1, le=20)
+    grid_cols: int | None = Field(default=None, ge=1, le=20)
+    device: DeviceInline | None = None
     round_the_clock: bool = False
 
 
 class PostamatPatch(BaseModel):
+    number: str | None = Field(default=None, min_length=1, max_length=32)
     name: str | None = Field(default=None, min_length=1, max_length=200)
     city_id: uuid.UUID | None = None
     address: str | None = Field(default=None, min_length=1, max_length=500)
-    latitude: float | None = Field(default=None, ge=-90, le=90)
-    longitude: float | None = Field(default=None, ge=-180, le=180)
+    location: GeoPoint | None = None
+    working_hours: str | None = Field(default=None, max_length=64)
+    grid_rows: int | None = Field(default=None, ge=1, le=20)
+    grid_cols: int | None = Field(default=None, ge=1, le=20)
+    device: DeviceInline | None = None
     round_the_clock: bool | None = None
 
 
@@ -112,15 +150,38 @@ class PostamatOut(BaseModel):
     name: str
     city_id: uuid.UUID
     address: str
-    latitude: float | None
-    longitude: float | None
+    # One `location` object rather than two loose floats, because that is the
+    # shape three generated clients read.
+    location: GeoPoint | None
+    # What the panel prints in the table cell: «24/7», «08:00–20:00», or whatever
+    # the operator typed.
+    working_hours: str | None
     status: PostamatStatus
     round_the_clock: bool
     schedule: list[ScheduleSlotOut]
     photos: list[PhotoOut]
+    occupied_cell_count: int = 0
+    total_cell_count: int = 0
     # A string rather than a datetime: Pydantic renders an aware datetime with
     # a +00:00 offset, and the wire format is fixed at trailing Z.
     created_at: str
+
+
+class DeviceBrief(BaseModel):
+    id: uuid.UUID
+    postamat_id: uuid.UUID
+    status: str
+    ip_address: str | None
+    mac_address: str | None
+    last_seen_at: str | None
+
+
+class PostamatDetailsOut(PostamatOut):
+    device: DeviceBrief | None = None
+    grid_rows: int | None = None
+    grid_cols: int | None = None
+    blocked_reason: str | None = None
+    updated_at: str | None = None
 
 
 class PostamatPage(BaseModel):
@@ -134,8 +195,8 @@ class PostamatPublicOut(BaseModel):
     name: str
     city_id: uuid.UUID
     address: str
-    latitude: float | None
-    longitude: float | None
+    location: GeoPoint | None
+    working_hours: str | None
     status: PostamatStatus
     round_the_clock: bool
     schedule: list[ScheduleSlotOut]
@@ -153,20 +214,73 @@ class PostamatPublicPage(BaseModel):
 
 def _slots(postamat: Postamat) -> list[ScheduleSlotOut]:
     return [
-        ScheduleSlotOut(weekday=slot.weekday, opens_at=slot.opens_at,
-                        closes_at=slot.closes_at)
+        ScheduleSlotOut(
+            # Storage counts weekdays from 0 because `datetime.weekday()` does;
+            # the wire counts from 1 because the contract does.
+            weekday=slot.weekday + 1,
+            opens_at=slot.opens_at.strftime("%H:%M"),
+            closes_at=slot.closes_at.strftime("%H:%M"),
+        )
         for slot in sorted(postamat.schedule, key=lambda slot: slot.weekday)
     ]
 
 
-def postamat_out(postamat: Postamat) -> PostamatOut:
-    return PostamatOut(
-        id=postamat.id, number=postamat.number, name=postamat.name,
-        city_id=postamat.city_id, address=postamat.address,
-        latitude=postamat.latitude, longitude=postamat.longitude,
-        status=postamat.status, round_the_clock=postamat.round_the_clock,
-        schedule=_slots(postamat), photos=photos_out(postamat),
-        created_at=utc_isoformat(postamat.created_at),
+def schedule_out(postamat: Postamat) -> "ScheduleOut":
+    return ScheduleOut(round_the_clock=postamat.round_the_clock,
+                       days=_slots(postamat))
+
+
+def location_of(postamat: Postamat) -> GeoPoint | None:
+    if postamat.latitude is None or postamat.longitude is None:
+        return None
+    return GeoPoint(lat=postamat.latitude, lon=postamat.longitude)
+
+
+def working_hours_of(postamat: Postamat) -> str | None:
+    """The one line the table prints for opening hours.
+
+    What the operator typed wins; otherwise it is read off the schedule, which
+    is the fact the rest of the system actually enforces. A machine with neither
+    says nothing rather than inventing hours.
+    """
+    if postamat.working_hours:
+        return postamat.working_hours
+    if postamat.round_the_clock:
+        return "24/7"
+    if not postamat.schedule:
+        return None
+    opens = min(slot.opens_at for slot in postamat.schedule)
+    closes = max(slot.closes_at for slot in postamat.schedule)
+    return f"{opens.strftime('%H:%M')}–{closes.strftime('%H:%M')}"
+
+
+def _common(postamat: Postamat, occupied: int = 0, total: int = 0) -> dict:
+    return {
+        "id": postamat.id, "number": postamat.number, "name": postamat.name,
+        "city_id": postamat.city_id, "address": postamat.address,
+        "location": location_of(postamat),
+        "working_hours": working_hours_of(postamat),
+        "status": postamat.status, "round_the_clock": postamat.round_the_clock,
+        "schedule": _slots(postamat), "photos": photos_out(postamat),
+        "occupied_cell_count": occupied, "total_cell_count": total,
+        "created_at": utc_isoformat(postamat.created_at),
+    }
+
+
+def postamat_out(postamat: Postamat, occupied: int = 0,
+                 total: int = 0) -> PostamatOut:
+    return PostamatOut(**_common(postamat, occupied, total))
+
+
+def postamat_details_out(
+    postamat: Postamat, occupied: int = 0, total: int = 0,
+    device: DeviceBrief | None = None,
+) -> PostamatDetailsOut:
+    return PostamatDetailsOut(
+        **_common(postamat, occupied, total), device=device,
+        grid_rows=postamat.grid_rows, grid_cols=postamat.grid_cols,
+        blocked_reason=postamat.blocked_reason,
+        updated_at=utc_isoformat(postamat.updated_at),
     )
 
 
@@ -196,7 +310,7 @@ def postamat_public_out(postamat: Postamat, moment: datetime) -> PostamatPublicO
     return PostamatPublicOut(
         id=postamat.id, number=postamat.number, name=postamat.name,
         city_id=postamat.city_id, address=postamat.address,
-        latitude=postamat.latitude, longitude=postamat.longitude,
+        location=location_of(postamat), working_hours=working_hours_of(postamat),
         status=postamat.status, round_the_clock=postamat.round_the_clock,
         schedule=_slots(postamat), photos=photos_out(postamat),
         is_open_now=is_open_at(postamat, moment),
