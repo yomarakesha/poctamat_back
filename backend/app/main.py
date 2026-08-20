@@ -9,6 +9,7 @@ from app.api.admin import clients as admin_clients
 from app.api.admin import custody as admin_custody
 from app.api.admin import devices as admin_devices
 from app.api.admin import postamats as admin_postamats
+from app.api.admin import realtime as admin_realtime
 from app.api.admin import stats as admin_stats
 from app.api.admin import tariffs as admin_tariffs
 from app.api.admin import users as admin_users
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_cell_types.router, prefix=API_PREFIX)
     app.include_router(admin_devices.router, prefix=API_PREFIX)
     app.include_router(admin_audit.router, prefix=API_PREFIX)
+    app.include_router(admin_realtime.router, prefix=API_PREFIX)
     app.include_router(public_catalog.router, prefix=API_PREFIX)
     app.include_router(public_media.router, prefix=API_PREFIX)
     app.include_router(public_postamats.router, prefix=API_PREFIX)

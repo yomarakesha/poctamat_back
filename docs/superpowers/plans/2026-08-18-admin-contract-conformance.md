@@ -166,11 +166,13 @@ modify `backend/app/modules/catalog/models.py` if the provisioning code needs st
 
 **Files:** create `backend/app/api/admin/realtime.py`, `backend/tests/admin/test_realtime.py`.
 
-- [ ] `GET /admin/realtime/stream` — SSE over the audit log (D5), with the contract's event
-      envelope and a heartbeat so a proxy does not kill an idle connection.
-- [ ] The stream ends cleanly when the client disconnects; a test asserts the generator stops rather
+- [x] `GET /admin/realtime/stream` — SSE over the audit log (D5), with the contract's event
+      envelope and a heartbeat so a proxy does not kill an idle connection. Journal events map onto
+      `RealtimeEventType`; anything unmapped arrives as `audit.entry_created` rather than being
+      dropped.
+- [x] The stream ends cleanly when the client disconnects; a test asserts the generator stops rather
       than polling a dead socket forever.
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ### Task 9: The admin shapes that already exist
 
