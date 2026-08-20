@@ -153,11 +153,14 @@ modify `backend/app/modules/catalog/models.py` if the provisioning code needs st
 
 **Files:** create `backend/app/api/admin/audit.py`, `backend/tests/admin/test_audit.py`.
 
-- [ ] `GET /admin/audit-log` — filters by actor, event, severity and date range, page-paginated.
-- [ ] `GET /admin/audit-log/export` — CSV, streamed, capped; over the cap answers 422
+- [x] `GET /admin/audit-log` — filters by actor, event, severity and date range. Cursor-paginated,
+      not page-paginated: the contract says so, and this table only grows.
+- [x] `GET /admin/audit-log/export` — CSV, streamed, capped; over the cap answers 422
       `EXPORT_TOO_LARGE` rather than building a file nobody can open.
-- [ ] Permission `audit.read`, and reading the audit log is itself audited.
-- [ ] Suite green, commit.
+- [x] Permission `audit.read`, and reading the audit log is itself audited — once per operator per
+      hour for a page view, every time for an export. A row per refresh of an auto-refreshing screen
+      would bury the entries worth reading.
+- [x] Suite green, commit.
 
 ### Task 8: Realtime stream
 

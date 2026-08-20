@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.deps import require_permission
 from app.core.types import Money, utc_isoformat
+from app.modules.audit import views as audit_views
 from app.modules.audit.models import AuditEntry
 from app.modules.booking.models import Booking
 from app.modules.catalog.models import Cell, CellType, Postamat
@@ -79,27 +80,8 @@ class PeakHours(BaseModel):
     buckets: list[PeakBucket]
 
 
-class AuditLogEntry(BaseModel):
-    id: uuid.UUID
-    occurred_at: str
-    source: str
-    actor_id: uuid.UUID | None
-    actor_label: str | None
-    event_type: str
-    severity: str
-    message: str
-    postamat_id: uuid.UUID | None
-    postamat_number: str | None
-    cell_id: uuid.UUID | None
-    cell_number: str | None
-    booking_id: uuid.UUID | None
-    reason: str | None
-    details: dict | None
-    trace_id: str | None
-
-
 class RecentEvents(BaseModel):
-    items: list[AuditLogEntry]
+    items: list[audit_views.AuditLogEntry]
 
 
 class AdminBookingListItem(BaseModel):
@@ -118,57 +100,6 @@ class AdminBookingListItem(BaseModel):
 
 class RecentBookings(BaseModel):
     items: list[AdminBookingListItem]
-
-
-async def audit_entries(
-    session: AsyncSession, rows: list[AuditEntry]
-) -> list[AuditLogEntry]:
-    """Serialise a page of journal rows, resolving postamat and cell labels.
-
-    Two lookups for the page rather than two per row: the «Последние события»
-    panel is on the dashboard, which is the one screen everybody keeps open.
-    """
-    postamat_ids = {row.postamat_id for row in rows if row.postamat_id}
-    cell_ids = {row.cell_id for row in rows if row.cell_id}
-
-    numbers: dict[uuid.UUID, str] = {}
-    if postamat_ids:
-        numbers = {
-            row_id: number
-            for row_id, number in await session.execute(
-                select(Postamat.id, Postamat.number)
-                .where(Postamat.id.in_(postamat_ids))
-            )
-        }
-    cells: dict[uuid.UUID, int] = {}
-    if cell_ids:
-        cells = {
-            row_id: number
-            for row_id, number in await session.execute(
-                select(Cell.id, Cell.number).where(Cell.id.in_(cell_ids))
-            )
-        }
-
-    return [
-        AuditLogEntry(
-            id=row.id, occurred_at=utc_isoformat(row.created_at),
-            source=str(row.source), actor_id=None,
-            # A label, not an id: the actor may be a person, the system or a
-            # device, and only the first of those has a row anywhere.
-            actor_label=row.actor,
-            event_type=row.event, severity=str(row.severity), message=row.message,
-            postamat_id=row.postamat_id,
-            postamat_number=numbers.get(row.postamat_id) if row.postamat_id else None,
-            cell_id=row.cell_id,
-            cell_number=(str(cells[row.cell_id])
-                         if row.cell_id in cells else None),
-            booking_id=(uuid.UUID(row.details["booking_id"])
-                        if row.details and row.details.get("booking_id") else None),
-            reason=(row.details or {}).get("reason"),
-            details=row.details, trace_id=row.trace_id,
-        )
-        for row in rows
-    ]
 
 
 def _frame(period: str, since: datetime | None, until: datetime | None):
@@ -266,7 +197,7 @@ async def recent_events(
     rows = list(await session.scalars(
         select(AuditEntry).order_by(AuditEntry.created_at.desc()).limit(limit)
     ))
-    return RecentEvents(items=await audit_entries(session, rows))
+    return RecentEvents(items=await audit_views.entries(session, rows))
 
 
 @router.get("/recent-bookings", response_model=RecentBookings)
