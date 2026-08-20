@@ -80,6 +80,25 @@ def reset_kvstore():
 
 
 @pytest.fixture
+def count_queries(test_engine):
+    """Every statement the engine issues while the fixture is live.
+
+    Used by the tests that pin how many round trips a screen costs: a tile that
+    costs a query per row is what turns a dashboard into sixty of them.
+    """
+    from sqlalchemy import event
+
+    seen: list[str] = []
+
+    def before(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    event.listen(test_engine.sync_engine, "before_cursor_execute", before)
+    yield seen
+    event.remove(test_engine.sync_engine, "before_cursor_execute", before)
+
+
+@pytest.fixture
 async def session(test_engine):
     maker = async_sessionmaker(test_engine, expire_on_commit=False)
     async with maker() as s:

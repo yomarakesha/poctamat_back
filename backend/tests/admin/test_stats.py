@@ -2,7 +2,6 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import event
 
 from app.core.db import utcnow
 from app.modules.booking.models import Booking, BookingStatus
@@ -22,18 +21,6 @@ async def _booking(session, postamat, cell_type, status, cell_id=None, **extra):
     session.add(row)
     await session.commit()
     return row
-
-
-@pytest.fixture
-def count_queries(test_engine):
-    seen: list[str] = []
-
-    def before(conn, cursor, statement, parameters, context, executemany):
-        seen.append(statement)
-
-    event.listen(test_engine.sync_engine, "before_cursor_execute", before)
-    yield seen
-    event.remove(test_engine.sync_engine, "before_cursor_execute", before)
 
 
 async def test_the_queue_counts_what_waits_on_a_person(
