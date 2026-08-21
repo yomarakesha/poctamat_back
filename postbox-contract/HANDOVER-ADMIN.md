@@ -163,12 +163,15 @@ Every error, from every endpoint, is the same envelope:
 sent. `trace_id` is worth showing in the panel's error toast: it is what the
 backend needs to find the request in the log.
 
-**The contract under-documents error responses.** Most operations list only their
-happy path plus one or two refusals, but any endpoint may answer 401 (no or
-expired token), 403 (permission or blocked account), 404, and 422 (validation) in
-this envelope. Handle those four everywhere rather than only where the YAML
-mentions them. Property-based testing flags this on 87 operation/status pairs;
-it is a gap in the file, not in the server.
+**Every admin operation now documents the refusals it can actually make.** The
+file used to list only the happy path plus one or two, so a generated client had
+no type for the answer it would really get; property-based testing flagged that
+on 87 operation/status pairs, and the missing responses have been added — 401
+where there is a token to check, 403 where there is a permission, 404 where the
+path names a row, 422 everywhere, and 400 plus 409 (`IdempotencyConflict`, a new
+reusable response) wherever `Idempotency-Key` is required. Nothing that was
+already documented changed: existing status codes kept their own descriptions and
+code lists, and no schema was touched. Regenerate the client to pick them up.
 
 ## What is answered, and what is not
 

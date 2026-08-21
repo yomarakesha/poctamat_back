@@ -87,3 +87,26 @@ async def test_deactivated_admin_cannot_refresh(client, session):
     )
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "ADMIN_ACCOUNT_BLOCKED"
+
+
+async def test_signing_out_needs_the_token_it_is_ending(client, session):
+    # The contract marks logout as authenticated, and so it is: otherwise anyone
+    # holding a stolen refresh token could end the session it belongs to.
+    await seed_admin(session)
+    login = await client.post("/api/v1/admin/auth/login",
+                              json={"login": "admin_ivanov", "password": "secret123"})
+    refresh = login.json()["refresh_token"]
+
+    without = await client.post("/api/v1/admin/auth/logout",
+                                json={"refresh_token": refresh})
+    assert without.status_code == 401
+
+    with_token = await client.post(
+        "/api/v1/admin/auth/logout", json={"refresh_token": refresh},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    assert with_token.status_code == 204
+
+    replayed = await client.post("/api/v1/admin/auth/refresh",
+                                 json={"refresh_token": refresh})
+    assert replayed.status_code == 401

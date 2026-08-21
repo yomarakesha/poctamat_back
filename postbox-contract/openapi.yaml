@@ -417,6 +417,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/auth/refresh:
     post:
       tags: [Auth (admin)]
@@ -447,6 +449,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/auth/logout:
     post:
       tags: [Auth (admin)]
@@ -460,6 +464,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/auth/me:
     get:
       tags: [Auth (admin)]
@@ -479,6 +487,10 @@ paths:
 
   # ────────────────────────────────────────────────────────────── Auth (kiosk)
 
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /kiosk/auth/provision:
     post:
       tags: [Auth (kiosk)]
@@ -2431,6 +2443,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     post:
       tags: [Admin — postamats]
       operationId: adminCreatePostamat
@@ -2465,6 +2479,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/postamats/{postamat_id}:
     get:
       tags: [Admin — postamats]
@@ -2483,6 +2503,12 @@ paths:
                 $ref: '#/components/schemas/AdminPostamatDetails'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     patch:
       tags: [Admin — postamats]
       operationId: adminUpdatePostamat
@@ -2510,6 +2536,10 @@ paths:
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /admin/postamats/{postamat_id}/block:
     post:
       tags: [Admin — postamats]
@@ -2552,6 +2582,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/postamats/{postamat_id}/unblock:
     post:
       tags: [Admin — postamats]
@@ -2574,6 +2614,14 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/postamats/{postamat_id}/schedule:
     put:
       tags: [Admin — postamats]
@@ -2616,6 +2664,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/postamats/{postamat_id}/photos:
     post:
       tags: [Admin — postamats]
@@ -2657,6 +2711,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/postamats/{postamat_id}/photos/{photo_id}:
     delete:
       tags: [Admin — postamats]
@@ -2681,6 +2743,12 @@ paths:
 
   # ─────────────────────────────────────────────────────── Admin — cell types
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/cell-types:
     get:
       tags: [Admin — cell types]
@@ -2715,6 +2783,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     post:
       tags: [Admin — cell types]
       operationId: adminCreateCellType
@@ -2742,6 +2812,14 @@ paths:
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/cell-types/{cell_type_id}:
     patch:
       tags: [Admin — cell types]
@@ -2772,6 +2850,12 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/cell-types/{cell_type_id}/block:
     post:
       tags: [Admin — cell types]
@@ -2804,6 +2888,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/tariffs:
     get:
       tags: [Admin — cell types]
@@ -2842,6 +2936,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     put:
       tags: [Admin — cell types]
       operationId: adminReplaceTariffs
@@ -2914,6 +3010,10 @@ paths:
 
   # ─────────────────────────────────────────────────────────── Admin — cells
 
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/cells:
     get:
       tags: [Admin — cells]
@@ -2969,6 +3069,10 @@ paths:
                     $ref: '#/components/schemas/CursorPagination'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     post:
       tags: [Admin — cells]
       operationId: adminCreateCell
@@ -2999,6 +3103,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/cells/bulk:
     post:
       tags: [Admin — cells]
@@ -3101,6 +3213,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/cells/{cell_id}:
     get:
       tags: [Admin — cells]
@@ -3119,6 +3237,12 @@ paths:
                 $ref: '#/components/schemas/CellWithState'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     patch:
       tags: [Admin — cells]
       operationId: adminUpdateCell
@@ -3153,6 +3277,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/cells/{cell_id}/block:
     post:
       tags: [Admin — cells]
@@ -3189,6 +3321,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/cells/{cell_id}/unblock:
     post:
       tags: [Admin — cells]
@@ -3235,6 +3377,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/cells/{cell_id}/maintenance:
     post:
       tags: [Admin — cells]
@@ -3277,6 +3429,16 @@ paths:
 
   # ───────────────────────────────────────────────────────── Admin — custody
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/custody:
     get:
       tags: [Admin — custody]
@@ -3316,6 +3478,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     post:
       tags: [Admin — custody]
       operationId: adminCreateCustodyRecord
@@ -3373,6 +3537,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/custody/{custody_id}:
     get:
       tags: [Admin — custody]
@@ -3394,6 +3562,10 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/custody/{custody_id}/handover:
     post:
       tags: [Admin — custody]
@@ -3435,6 +3607,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/custody/{custody_id}/dispose:
     post:
       tags: [Admin — custody]
@@ -3476,6 +3658,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/bookings/{booking_id}/refund:
     post:
       tags: [Admin — custody]
@@ -3544,6 +3736,12 @@ paths:
 
   # ───────────────────────────────────────────────────────── Admin — clients
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/clients:
     get:
       tags: [Admin — clients]
@@ -3599,6 +3797,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/clients/{client_id}:
     get:
       tags: [Admin — clients]
@@ -3623,6 +3823,12 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/clients/{client_id}/block:
     post:
       tags: [Admin — clients]
@@ -3670,6 +3876,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/clients/{client_id}/unblock:
     post:
       tags: [Admin — clients]
@@ -3699,6 +3915,14 @@ paths:
 
   # ───────────────────────────────────────────────────────── Admin — devices
 
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/devices:
     get:
       tags: [Admin — devices]
@@ -3743,6 +3967,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/devices/{device_id}:
     get:
       tags: [Admin — devices]
@@ -3767,6 +3993,12 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/devices/{device_id}/provisioning-code:
     post:
       tags: [Admin — devices]
@@ -3800,6 +4032,14 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/cells/{cell_id}/remote-open:
     post:
       tags: [Admin — devices]
@@ -3868,6 +4108,14 @@ paths:
 
   # ─────────────────────────────────────────────── Admin — users and roles
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/users:
     get:
       tags: [Admin — users and roles]
@@ -3897,6 +4145,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
     post:
       tags: [Admin — users and roles]
       operationId: adminCreateUser
@@ -3955,6 +4205,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/users/{user_id}:
     patch:
       tags: [Admin — users and roles]
@@ -4002,6 +4258,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/users/{user_id}/reset-password:
     post:
       tags: [Admin — users and roles]
@@ -4039,6 +4301,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
   /admin/roles:
     get:
       tags: [Admin — users and roles]
@@ -4066,6 +4338,8 @@ paths:
 
   # ─────────────────────────────────────────────────────── Admin — audit log
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/audit-log:
     get:
       tags: [Admin — audit log]
@@ -4138,6 +4412,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/audit-log/export:
     get:
       tags: [Admin — audit log]
@@ -4188,6 +4464,10 @@ paths:
 
   # ────────────────────────────────────────────────────── Admin — statistics
 
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /admin/stats/attention:
     get:
       tags: [Admin — statistics]
@@ -4224,6 +4504,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/stats/overview:
     get:
       tags: [Admin — statistics]
@@ -4265,6 +4547,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/stats/bookings:
     get:
       tags: [Admin — statistics]
@@ -4323,6 +4607,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/stats/utilization:
     get:
       tags: [Admin — statistics]
@@ -4379,6 +4665,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/stats/peak-hours:
     get:
       tags: [Admin — statistics]
@@ -4434,6 +4722,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/stats/revenue:
     get:
       tags: [Admin — statistics]
@@ -4496,6 +4786,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/stats/recent-events:
     get:
       tags: [Admin — statistics]
@@ -4523,6 +4815,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/stats/recent-bookings:
     get:
       tags: [Admin — statistics]
@@ -4552,6 +4846,8 @@ paths:
 
   # ──────────────────────────────────────────────────────────────── Realtime
 
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/realtime/stream:
     get:
       tags: [Realtime]
@@ -4588,6 +4884,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
 components:
 
   securitySchemes:
@@ -4756,6 +5056,16 @@ components:
                 fields:
                   phone: must match E.164 (+993…)
               trace_id: 0190f2c1-6b7a-7c3e-9a11-2f0c9a5d4eff
+
+    IdempotencyConflict:
+      description: |
+        The same `Idempotency-Key` arrived again with a different body. Code:
+        `IDEMPOTENCY_KEY_REUSED`. Replaying a key with the *same* body is not an
+        error — it returns the original response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
 
     Unauthorized:
       description: |

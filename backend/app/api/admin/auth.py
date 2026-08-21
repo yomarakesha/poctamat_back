@@ -69,7 +69,13 @@ async def refresh(
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
-    payload: RefreshRequest, session: AsyncSession = Depends(get_session)
+    payload: RefreshRequest,
+    session: AsyncSession = Depends(get_session),
+    # Signing out is an authenticated act, as the contract states: without this
+    # anyone holding a stolen refresh token could end the session it belongs to,
+    # and an unauthenticated caller learned the shape of the body instead of
+    # being turned away.
+    _: AdminUser = Depends(require_admin),
 ) -> Response:
     await service.revoke_refresh_token(session, payload.refresh_token, "admin")
     await session.commit()
