@@ -378,7 +378,7 @@ async def main() -> int:
         await call("PATCH", f"/api/v1/admin/postamats/{made['id']}", headers=panel,
                    json={"name": "ТП #5, вход со двора"})
         await call("PUT", f"/api/v1/admin/postamats/{made['id']}/schedule",
-                   headers=panel, json={"round_the_clock": False, "days": [
+                   headers=panel | key(), json={"round_the_clock": False, "days": [
                        {"weekday": day, "opens_at": "08:00", "closes_at": "20:00"}
                        for day in range(1, 8)
                    ]})

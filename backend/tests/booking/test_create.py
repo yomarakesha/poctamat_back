@@ -1,3 +1,4 @@
+import uuid
 from app.modules.booking.models import BookingStatus
 from app.modules.catalog.models import Cell
 from tests.helpers import set_tariffs
@@ -98,7 +99,8 @@ async def test_a_blocked_postamat_cannot_be_booked(
     await _cells(session, postamat, cell_type, 1)
     await _tariffs(client, admin_token, city, cell_type)
     await client.post(f"/api/v1/admin/postamats/{postamat.id}/block",
-                      headers={"Authorization": f"Bearer {admin_token}"},
+                      headers={"Authorization": f"Bearer {admin_token}",
+                               "Idempotency-Key": str(uuid.uuid4())},
                       json={"reason": "vandalised"})
 
     response = await book(_body(postamat, cell_type))

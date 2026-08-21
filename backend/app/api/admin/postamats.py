@@ -17,6 +17,7 @@ from app.core.db import get_session
 from app.core.deps import require_permission
 from app.core.config import get_settings
 from app.core.errors import AppError, ErrorCode
+from app.core.idempotency import require_idempotency_key
 from app.core.storage import ALLOWED_IMAGE_TYPES, get_file_storage
 from app.core.pagination import PageParams, page_params, paginate_page
 from app.modules.audit.models import Source
@@ -199,7 +200,8 @@ def _write_fields(payload: PostamatIn | PostamatPatch) -> dict:
     return changes
 
 
-@router.post("", response_model=PostamatDetailsOut, status_code=201)
+@router.post("", response_model=PostamatDetailsOut, status_code=201,
+             dependencies=[Depends(require_idempotency_key)])
 async def create_postamat(
     payload: PostamatIn,
     session: AsyncSession = Depends(get_session),
@@ -249,7 +251,8 @@ async def update_postamat(
     return await _details(session, postamat)
 
 
-@router.post("/{postamat_id}/block", response_model=PostamatDetailsOut)
+@router.post("/{postamat_id}/block", response_model=PostamatDetailsOut,
+             dependencies=[Depends(require_idempotency_key)])
 async def block_postamat(
     postamat_id: uuid.UUID,
     payload: BlockRequest,
@@ -267,7 +270,8 @@ async def block_postamat(
     return await _details(session, postamat)
 
 
-@router.post("/{postamat_id}/unblock", response_model=PostamatDetailsOut)
+@router.post("/{postamat_id}/unblock", response_model=PostamatDetailsOut,
+             dependencies=[Depends(require_idempotency_key)])
 async def unblock_postamat(
     postamat_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
@@ -348,7 +352,8 @@ async def delete_photo(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put("/{postamat_id}/schedule", response_model=ScheduleOut)
+@router.put("/{postamat_id}/schedule", response_model=ScheduleOut,
+            dependencies=[Depends(require_idempotency_key)])
 async def set_schedule(
     postamat_id: uuid.UUID,
     payload: SchedulePut,

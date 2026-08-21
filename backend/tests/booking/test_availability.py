@@ -1,3 +1,4 @@
+import uuid
 from app.modules.booking.models import Booking, BookingStatus
 from app.modules.catalog.models import Cell
 from tests.helpers import set_tariffs
@@ -81,7 +82,8 @@ async def test_availability_of_a_blocked_postamat_is_404(
     client, admin_token, cell_type, postamat
 ):
     await client.post(f"/api/v1/admin/postamats/{postamat.id}/block",
-                      headers={"Authorization": f"Bearer {admin_token}"},
+                      headers={"Authorization": f"Bearer {admin_token}",
+                               "Idempotency-Key": str(uuid.uuid4())},
                       json={"reason": "vandalised"})
     response = await client.get(f"/api/v1/postamats/{postamat.id}/availability")
     assert response.status_code == 404

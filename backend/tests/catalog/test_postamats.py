@@ -69,7 +69,7 @@ def test_next_opening_is_now_when_round_the_clock():
 
 async def test_create_and_block_postamat(client, session, admin_token, city):
     headers = {"Authorization": f"Bearer {admin_token}"}
-    created = await client.post("/api/v1/admin/postamats", headers=headers, json={
+    created = await client.post("/api/v1/admin/postamats", headers=headers | _key(), json={
         "number": "10042", "name": "ТП #4", "city_id": str(city.id),
         "address": "ул. Ататюрк, 31", "round_the_clock": False,
     })
@@ -78,17 +78,17 @@ async def test_create_and_block_postamat(client, session, admin_token, city):
     assert created.json()["created_at"].endswith("Z")
 
     blocked = await client.post(f"/api/v1/admin/postamats/{postamat_id}/block",
-                                headers=headers, json={"reason": "vandalised"})
+                                headers=headers | _key(), json={"reason": "vandalised"})
     assert blocked.json()["status"] == "blocked"
 
     unblocked = await client.post(f"/api/v1/admin/postamats/{postamat_id}/unblock",
-                                  headers=headers)
+                                  headers=headers | _key())
     assert unblocked.json()["status"] == "active"
 
 
 async def test_duplicate_number_is_409(client, admin_token, city, postamat):
     headers = {"Authorization": f"Bearer {admin_token}"}
-    response = await client.post("/api/v1/admin/postamats", headers=headers, json={
+    response = await client.post("/api/v1/admin/postamats", headers=headers | _key(), json={
         "number": postamat.number, "name": "ТП #2", "city_id": str(city.id),
         "address": "ул. Гарашсызлык, 1",
     })
@@ -103,7 +103,7 @@ async def test_schedule_replaces_the_whole_week(client, admin_token, postamat):
             "days": [{"weekday": day, "opens_at": "08:00", "closes_at": "20:00"}
                      for day in range(1, 8)]}
     response = await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule",
-                                headers=headers, json=week)
+                                headers=headers | _key(), json=week)
     assert response.status_code == 200
     assert len(response.json()["days"]) == 7
 
@@ -111,7 +111,7 @@ async def test_schedule_replaces_the_whole_week(client, admin_token, postamat):
                      "days": [{"weekday": day, "opens_at": "09:00",
                                "closes_at": "18:00"} for day in range(1, 6)]}
     replaced = await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule",
-                                headers=headers, json=weekdays_only)
+                                headers=headers | _key(), json=weekdays_only)
     assert [slot["weekday"] for slot in replaced.json()["days"]] == [1, 2, 3, 4, 5]
     assert replaced.json()["days"][0]["opens_at"] == "09:00"
 
@@ -119,13 +119,13 @@ async def test_schedule_replaces_the_whole_week(client, admin_token, postamat):
 async def test_round_the_clock_keeps_no_days(client, admin_token, postamat):
     headers = {"Authorization": f"Bearer {admin_token}"}
     await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule",
-                     headers=headers,
+                     headers=headers | _key(),
                      json={"round_the_clock": False,
                            "days": [{"weekday": 1, "opens_at": "08:00",
                                      "closes_at": "20:00"}]})
 
     response = await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule",
-                                headers=headers, json={"round_the_clock": True})
+                                headers=headers | _key(), json={"round_the_clock": True})
     # Hours kept alongside «круглосуточно» are two answers to one question.
     assert response.json() == {"round_the_clock": True, "days": []}
     detail = await client.get(f"/api/v1/postamats/{postamat.id}")
@@ -134,8 +134,7 @@ async def test_round_the_clock_keeps_no_days(client, admin_token, postamat):
 
 async def test_a_window_crossing_midnight_is_rejected(client, admin_token, postamat):
     headers = {"Authorization": f"Bearer {admin_token}"}
-    response = await client.put(
-        f"/api/v1/admin/postamats/{postamat.id}/schedule", headers=headers,
+    response = await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule", headers=headers | _key(),
         json={"days": [{"weekday": 1, "opens_at": "22:00", "closes_at": "06:00"}]},
     )
     assert response.status_code == 422
@@ -144,8 +143,7 @@ async def test_a_window_crossing_midnight_is_rejected(client, admin_token, posta
 
 async def test_the_same_weekday_twice_is_rejected(client, admin_token, postamat):
     headers = {"Authorization": f"Bearer {admin_token}"}
-    response = await client.put(
-        f"/api/v1/admin/postamats/{postamat.id}/schedule", headers=headers,
+    response = await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule", headers=headers | _key(),
         json={"days": [{"weekday": 1, "opens_at": "08:00", "closes_at": "12:00"},
                        {"weekday": 1, "opens_at": "13:00", "closes_at": "20:00"}]},
     )
@@ -176,7 +174,7 @@ async def test_the_public_list_hides_blocked_machines(client, admin_token, posta
     assert [item["number"] for item in listed.json()["items"]] == [postamat.number]
 
     await client.post(f"/api/v1/admin/postamats/{postamat.id}/block",
-                      headers=headers, json={"reason": "vandalised"})
+                      headers=headers | _key(), json={"reason": "vandalised"})
 
     hidden = await client.get("/api/v1/postamats")
     assert hidden.json()["items"] == []
@@ -186,7 +184,7 @@ async def test_the_public_list_hides_blocked_machines(client, admin_token, posta
 
 async def test_the_public_detail_reports_opening_state(client, admin_token, postamat):
     headers = {"Authorization": f"Bearer {admin_token}"}
-    await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule", headers=headers,
+    await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule", headers=headers | _key(),
                      json={"days": [{"weekday": day, "opens_at": "00:00",
                                     "closes_at": "23:59"} for day in range(1, 8)]})
 
@@ -215,7 +213,7 @@ async def test_a_postamat_carries_one_location_object(
     client, session, admin_token, city
 ):
     headers = {"Authorization": f"Bearer {admin_token}"}
-    created = await client.post("/api/v1/admin/postamats", headers=headers, json={
+    created = await client.post("/api/v1/admin/postamats", headers=headers | _key(), json={
         "number": "10077", "name": "ТП #7", "city_id": str(city.id),
         "address": "ул. Гарашсызлык, 7",
         # One object rather than two loose floats: that is the shape three
@@ -270,7 +268,7 @@ async def test_the_detail_carries_the_device_and_the_block_reason(
                        json={"device": {"ip_address": "10.0.0.9",
                                         "mac_address": "b8:27:eb:00:00:02"}})
     await client.post(f"/api/v1/admin/postamats/{postamat.id}/block",
-                      headers=headers, json={"reason": "Сломан замок"})
+                      headers=headers | _key(), json={"reason": "Сломан замок"})
 
     detail = await client.get(f"/api/v1/admin/postamats/{postamat.id}",
                               headers=headers)
@@ -280,7 +278,7 @@ async def test_the_detail_carries_the_device_and_the_block_reason(
     assert body["updated_at"].endswith("Z")
 
     unblocked = await client.post(f"/api/v1/admin/postamats/{postamat.id}/unblock",
-                                  headers=headers)
+                                  headers=headers | _key())
     # A stale reason on a working machine reads as a warning that no longer
     # applies.
     assert unblocked.json()["blocked_reason"] is None
@@ -291,7 +289,7 @@ async def test_working_hours_are_read_off_the_schedule_when_nobody_typed_them(
 ):
     headers = {"Authorization": f"Bearer {admin_token}"}
     await client.put(f"/api/v1/admin/postamats/{postamat.id}/schedule",
-                     headers=headers,
+                     headers=headers | _key(),
                      json={"round_the_clock": False,
                            "days": [{"weekday": day, "opens_at": "09:00",
                                      "closes_at": "18:00"} for day in range(1, 6)]})
@@ -308,7 +306,7 @@ async def test_a_postamat_without_coordinates_omits_location(
     # so a machine nobody has placed on the map leaves the field out rather than
     # sending null — which the panel's generated client refuses.
     headers = {"Authorization": f"Bearer {admin_token}"}
-    created = await client.post("/api/v1/admin/postamats", headers=headers, json={
+    created = await client.post("/api/v1/admin/postamats", headers=headers | _key(), json={
         "number": "10099", "name": "ТП без координат", "city_id": str(city.id),
         "address": "ул. Огузхан, 5",
     })
@@ -321,7 +319,7 @@ async def test_a_postamat_without_coordinates_omits_location(
 
 async def test_coordinates_are_reported_when_they_exist(client, admin_token, city):
     headers = {"Authorization": f"Bearer {admin_token}"}
-    created = await client.post("/api/v1/admin/postamats", headers=headers, json={
+    created = await client.post("/api/v1/admin/postamats", headers=headers | _key(), json={
         "number": "10098", "name": "ТП на карте", "city_id": str(city.id),
         "address": "ул. Огузхан, 6", "location": {"lat": 37.95, "lon": 58.38},
     })
@@ -334,7 +332,7 @@ async def test_the_list_searches_number_name_and_address(
     # `q`, the contract's one search parameter, over what an operator has in
     # front of them when a customer telephones about «тот, что у почты».
     headers = {"Authorization": f"Bearer {admin_token}"}
-    await client.post("/api/v1/admin/postamats", headers=headers, json={
+    await client.post("/api/v1/admin/postamats", headers=headers | _key(), json={
         "number": "20001", "name": "ТП у почты", "city_id": str(city.id),
         "address": "ул. Почтовая, 1",
     })
@@ -349,3 +347,9 @@ async def test_the_list_searches_number_name_and_address(
     by_number = await client.get(f"/api/v1/admin/postamats?q={postamat.number}",
                                  headers=headers)
     assert [item["id"] for item in by_number.json()["items"]] == [str(postamat.id)]
+
+
+def _key():
+    import uuid as _uuid
+
+    return {"Idempotency-Key": str(_uuid.uuid4())}
