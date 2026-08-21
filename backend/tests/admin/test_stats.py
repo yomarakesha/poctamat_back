@@ -7,6 +7,7 @@ from app.core.db import utcnow
 from app.modules.booking.models import Booking, BookingStatus
 from app.modules.catalog.models import Cell, Device, DeviceStatus
 from app.modules.payments.models import Payment, PaymentStatus
+from tests.helpers import set_tariffs
 
 PATH = "/api/v1/admin/stats"
 
@@ -176,11 +177,8 @@ async def test_recent_bookings_carry_the_client_and_the_cell(
                      board=1, output=4))
     await session.commit()
     headers = {"Authorization": f"Bearer {admin_token}"}
-    await client.put("/api/v1/admin/tariffs", headers=headers, json={"entries": [
-        {"city_id": str(city.id), "cell_type_id": str(cell_type.id),
-         "duration_hours": hours, "amount_minor": 1800}
-        for hours in (12, 24, 48)
-    ]})
+    await set_tariffs(client, admin_token, city, cell_type,
+                      [(hours, 1800) for hours in (12, 24, 48)])
     created = await book({"postamat_id": str(postamat.id),
                           "cell_type_id": str(cell_type.id), "duration_hours": 24,
                           "recipient_phone": "+99365000001"})

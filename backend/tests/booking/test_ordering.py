@@ -2,6 +2,7 @@ import uuid
 
 from app.modules.booking.models import Booking, BookingStatus
 from app.modules.booking.service import mark_paid
+from tests.helpers import set_tariffs
 
 
 def _booking() -> Booking:
@@ -70,13 +71,8 @@ async def test_bookings_created_in_the_same_second_still_list_newest_first(
         for n in (1, 2, 3)
     ])
     await session.commit()
-    await client.put("/api/v1/admin/tariffs",
-                     headers={"Authorization": f"Bearer {admin_token}"},
-                     json={"entries": [
-                         {"city_id": str(city.id), "cell_type_id": str(cell_type.id),
-                          "duration_hours": hours, "amount_minor": 1800}
-                         for hours in (12, 24, 48)
-                     ]})
+    await set_tariffs(client, admin_token, city, cell_type,
+                      [(hours, 1800) for hours in (12, 24, 48)])
 
     headers = {"Authorization": f"Bearer {client_token}"}
     body = {"postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),

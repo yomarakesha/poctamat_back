@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from tests.helpers import set_tariffs
 
 
 @pytest.fixture
@@ -91,13 +92,8 @@ async def test_booking_is_refused_until_the_profile_is_complete(
     session.add(Cell(postamat_id=postamat.id, cell_type_id=cell_type.id, number=1,
                      board=1, output=1))
     await session.commit()
-    await client.put("/api/v1/admin/tariffs",
-                     headers={"Authorization": f"Bearer {admin_token}"},
-                     json={"entries": [
-                         {"city_id": str(city.id), "cell_type_id": str(cell_type.id),
-                          "duration_hours": hours, "amount_minor": 1800}
-                         for hours in (12, 24, 48)
-                     ]})
+    await set_tariffs(client, admin_token, city, cell_type,
+                      [(hours, 1800) for hours in (12, 24, 48)])
 
     response = await client.post(
         "/api/v1/bookings",

@@ -4,6 +4,7 @@ from datetime import timedelta
 from app.core.db import utcnow
 from app.modules.booking.models import Booking, BookingStatus
 from app.workers.holds import release_expired_holds
+from tests.helpers import set_tariffs
 
 
 def _booking(status, hold_offset_minutes):
@@ -64,13 +65,8 @@ async def test_the_released_cell_can_be_booked_again(
     session.add(Cell(postamat_id=postamat.id, cell_type_id=cell_type.id, number=1,
                      board=1, output=1))
     await session.commit()
-    await client.put("/api/v1/admin/tariffs",
-                     headers={"Authorization": f"Bearer {admin_token}"},
-                     json={"entries": [
-                         {"city_id": str(city.id), "cell_type_id": str(cell_type.id),
-                          "duration_hours": hours, "amount_minor": 1800}
-                         for hours in (12, 24, 48)
-                     ]})
+    await set_tariffs(client, admin_token, city, cell_type,
+                      [(hours, 1800) for hours in (12, 24, 48)])
     body = {"postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
             "duration_hours": 24, "recipient_phone": "+99365000001"}
 

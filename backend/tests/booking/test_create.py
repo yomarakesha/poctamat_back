@@ -1,5 +1,6 @@
 from app.modules.booking.models import BookingStatus
 from app.modules.catalog.models import Cell
+from tests.helpers import set_tariffs
 
 
 async def _cells(session, postamat, cell_type, count):
@@ -14,13 +15,7 @@ async def _cells(session, postamat, cell_type, count):
 
 
 async def _tariffs(client, admin_token, city, cell_type):
-    await client.put("/api/v1/admin/tariffs",
-                     headers={"Authorization": f"Bearer {admin_token}"},
-                     json={"entries": [
-                         {"city_id": str(city.id), "cell_type_id": str(cell_type.id),
-                          "duration_hours": hours, "amount_minor": amount}
-                         for hours, amount in ((12, 1200), (24, 1800), (48, 2600))
-                     ]})
+    await set_tariffs(client, admin_token, city, cell_type)
 
 
 def _body(postamat, cell_type):

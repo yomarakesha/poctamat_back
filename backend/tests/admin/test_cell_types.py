@@ -1,6 +1,7 @@
 import uuid
 
 from app.modules.catalog.models import Cell, CellType
+from tests.helpers import set_tariffs
 
 PATH = "/api/v1/admin/cell-types"
 
@@ -99,11 +100,8 @@ async def test_a_size_behind_a_live_booking_cannot_be_blocked(
     await session.commit()
     headers = {"Authorization": f"Bearer {admin_token}"}
     # Every duration, because a half-priced matrix is refused whole.
-    await client.put("/api/v1/admin/tariffs", headers=headers, json={"entries": [
-        {"city_id": str(city.id), "cell_type_id": str(cell_type.id),
-         "duration_hours": hours, "amount_minor": 1800}
-        for hours in (12, 24, 48)
-    ]})
+    await set_tariffs(client, admin_token, city, cell_type,
+                      [(hours, 1800) for hours in (12, 24, 48)])
     created = await book({"postamat_id": str(postamat.id),
                           "cell_type_id": str(cell_type.id), "duration_hours": 24,
                           "recipient_phone": "+99365000001"})
