@@ -223,3 +223,22 @@ async def test_listing_cells_needs_the_read_permission(client, session, postamat
                                 headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+async def test_an_untouched_cell_omits_its_status_moment(
+    client, admin_token, postamat, cell_type
+):
+    # `status_changed_at` is a Timestamp in the contract, not a nullable one: a
+    # cell whose status nobody has touched has no such moment, and the field
+    # stays out of the payload rather than going out as null.
+    created = await _create(client, admin_token, postamat, cell_type)
+    one = await client.get(f"{PATH}/{created.json()['id']}",
+                           headers={"Authorization": f"Bearer {admin_token}"})
+    assert "status_changed_at" not in one.json()
+
+    blocked = await client.post(
+        f"{PATH}/{created.json()['id']}/block",
+        headers={"Authorization": f"Bearer {admin_token}"} | _key(),
+        json={"reason": "Дверь не закрывается"},
+    )
+    assert blocked.json()["status_changed_at"].endswith("Z")

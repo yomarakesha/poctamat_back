@@ -19,6 +19,7 @@ import re
 import sys
 import tempfile
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -41,6 +42,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from jsonschema import Draft202012Validator  # noqa: E402
 from referencing import Registry, Resource  # noqa: E402
 from referencing.jsonschema import DRAFT202012  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 
 from app.core.db import Base, get_session  # noqa: E402
@@ -59,12 +61,58 @@ CONTRACT_URI = "urn:postbox-contract"
 REGISTRY = Registry().with_resource(CONTRACT_URI, DRAFT202012.create_resource(SPEC))
 
 
+# Deliberate departures from the contract, with the decision behind each. The
+# walk reports them on every run instead of failing on them: a departure that
+# stops being visible is one that quietly becomes the way things are, and the
+# admin handover has to keep naming them.
+DEVIATIONS = {
+    "/admin/custody": {
+        "photo_url": "Ruling Q2 — the only photograph this product takes is of "
+                     "the postamat, so a removal act carries a written "
+                     "description and no image.",
+    },
+    "/admin/custody/{custody_id}": {
+        "photo_url": "Ruling Q2 — see POST /admin/custody.",
+    },
+    "/admin/custody/{custody_id}/handover": {
+        "photo_url": "Ruling Q2 — see POST /admin/custody.",
+    },
+    "/admin/custody/{custody_id}/dispose": {
+        "photo_url": "Ruling Q2 — see POST /admin/custody.",
+    },
+}
+
+_deviations_seen: dict[str, str] = {}
+
+
+def _waived(template: str, error) -> str | None:
+    """The reason this error is a known departure, or None if it is a failure."""
+    if error.validator != "required":
+        return None
+    for name, reason in DEVIATIONS.get(template, {}).items():
+        if f"'{name}' is a required property" in error.message:
+            _deviations_seen[f"{template}:{name}"] = reason
+            return reason
+    return None
+
+
 def pointer(*parts: str) -> str:
     escaped = "/".join(part.replace("~", "~0").replace("/", "~1") for part in parts)
     return f"{CONTRACT_URI}#/{escaped}"
 
 _checked = 0
 _failed = 0
+
+ADMIN_PASSWORD = "walker-secret-1"
+# Everything the admin routers ask for. The walk is about payload shapes, and a
+# missing permission would read as a contract failure when it is an ACL gap.
+PERMISSIONS = (
+    "audit.read", "bookings.read", "bookings.write", "cells.read",
+    "cells.remote_open", "cells.write", "clients.read", "clients.write",
+    "custody.read", "custody.write", "devices.read", "devices.write",
+    "postamats.read", "postamats.write", "roles.read", "tariffs.read",
+    "tariffs.write", "users.read", "users.write",
+)
 
 
 def _template(path: str) -> str:
@@ -100,10 +148,15 @@ def check(method: str, path: str, status: int, body: object) -> None:
         return
 
     _checked += 1
-    errors = sorted(
+    found = sorted(
         Draft202012Validator(schema, registry=REGISTRY).iter_errors(body),
         key=lambda error: list(error.path),
     )
+    errors = [error for error in found if _waived(template, error) is None]
+    if not errors and found:
+        print(f"{YELLOW}DEV  {method:6} {path:46} {status} "
+              f"(known departure){RESET}")
+        return
     if errors:
         _failed += 1
         print(f"{RED}FAIL {method:6} {path:46} {status}{RESET}")
@@ -115,7 +168,9 @@ def check(method: str, path: str, status: int, body: object) -> None:
 
 
 async def seed(maker) -> dict:
+    from app.core.security import hash_secret
     from app.modules.catalog.models import Cell, CellType, City, Postamat, Tariff
+    from app.modules.identity.models import AdminUser, Role
 
     async with maker() as session:
         city = City(code="ashgabat", name_tk="Aşgabat", name_ru="Ашхабад",
@@ -139,9 +194,54 @@ async def seed(maker) -> dict:
                    amount_minor=amount, currency="TMT")
             for hours, amount in ((12, 1200), (24, 1800), (48, 2600))
         ])
+        role = Role(code="root", name="Root", permissions=list(PERMISSIONS))
+        session.add(role)
+        await session.flush()
+        session.add(AdminUser(login="walker", full_name="Ходоков Х.Х.",
+                              password_hash=hash_secret(ADMIN_PASSWORD),
+                              role_id=role.id))
         await session.commit()
         return {"postamat_id": str(postamat.id), "cell_type_id": str(cell_type.id),
                 "city_id": str(city.id)}
+
+
+async def parcel_to_remove(maker, fleet: dict) -> str:
+    """Put a parcel in the removal queue, the way the overdue worker does.
+
+    The custody walk needs a booking a removal act may be filed against, and
+    getting there through the API would mean waiting out a rental.
+    """
+    from app.core.db import utcnow
+    from app.modules.booking.models import Booking, BookingStatus
+    from app.modules.catalog.models import Cell
+
+    async with maker() as session:
+        cell = await session.scalar(
+            select(Cell).where(Cell.postamat_id == uuid.UUID(fleet["postamat_id"]))
+            .order_by(Cell.number.desc())
+        )
+        booking = Booking(
+            client_id=uuid.uuid4(), postamat_id=uuid.UUID(fleet["postamat_id"]),
+            cell_id=cell.id, cell_type_id=uuid.UUID(fleet["cell_type_id"]),
+            duration_hours=24, amount_minor=1800, status=BookingStatus.TO_REMOVE,
+            recipient_phone="+99365000007",
+            expires_at=utcnow() - timedelta(hours=30),
+            remove_after=utcnow() - timedelta(hours=1),
+        )
+        session.add(booking)
+        await session.commit()
+        return str(booking.id)
+
+
+async def custody_is_due(maker) -> None:
+    """Move the disposal date into the past, the way thirty days would."""
+    from app.core.db import utcnow
+    from app.modules.custody.models import CustodyRecord
+
+    async with maker() as session:
+        record = await session.scalar(select(CustodyRecord))
+        record.disposal_due_at = utcnow() - timedelta(minutes=1)
+        await session.commit()
 
 
 async def deposit(maker, booking_id: str) -> None:
@@ -258,14 +358,115 @@ async def main() -> int:
                    json={"new_phone": "+99365000009", "new_name": "Новый"})
         await call("GET", "/api/v1/bookings?scope=history", headers=bearer)
 
+        print(f"\n{YELLOW}-- the panel signs in --{RESET}")
+        staff = await call("POST", "/api/v1/admin/auth/login",
+                           json={"login": "walker", "password": ADMIN_PASSWORD})
+        panel = {"Authorization": f"Bearer {staff['access_token']}"}
+        await call("GET", "/api/v1/admin/auth/me", headers=panel)
+
+        print(f"\n{YELLOW}-- postamats --{RESET}")
+        await call("GET", "/api/v1/admin/postamats", headers=panel)
+        made = await call("POST", "/api/v1/admin/postamats", expect=201,
+                          headers=panel | key(),
+                          json={"number": "10043", "name": "ТП #5",
+                                "city_id": fleet["city_id"],
+                                "address": "ул. Гарашсызлык, 12",
+                                "location": {"lat": 37.95, "lon": 58.38},
+                                "grid_rows": 3, "grid_cols": 3,
+                                "round_the_clock": True})
+        await call("GET", f"/api/v1/admin/postamats/{made['id']}", headers=panel)
+        await call("PATCH", f"/api/v1/admin/postamats/{made['id']}", headers=panel,
+                   json={"name": "ТП #5, вход со двора"})
+        await call("PUT", f"/api/v1/admin/postamats/{made['id']}/schedule",
+                   headers=panel, json={"round_the_clock": False, "days": [
+                       {"weekday": day, "opens_at": "08:00", "closes_at": "20:00"}
+                       for day in range(1, 8)
+                   ]})
+        await call("POST", f"/api/v1/admin/postamats/{made['id']}/block",
+                   headers=panel | key(), json={"reason": "Плановые работы"})
+        await call("POST", f"/api/v1/admin/postamats/{made['id']}/unblock",
+                   headers=panel | key())
+
+        print(f"\n{YELLOW}-- cell types and prices --{RESET}")
+        await call("GET", "/api/v1/admin/cell-types", headers=panel)
+        kind = await call("POST", "/api/v1/admin/cell-types", expect=201,
+                          headers=panel | key(),
+                          json={"code": "medium", "name": "Средний",
+                                "width_mm": 300, "height_mm": 300, "depth_mm": 500})
+        await call("PATCH", f"/api/v1/admin/cell-types/{kind['id']}", headers=panel,
+                   json={"name": "Средний+"})
+        await call("GET", "/api/v1/admin/tariffs", headers=panel)
+        await call("PUT", "/api/v1/admin/tariffs", headers=panel | key(), json={
+            "items": [
+                {"city_id": fleet["city_id"], "cell_type_id": cell_type_id,
+                 "duration_hours": hours,
+                 "price": {"amount_minor": amount, "currency": "TMT"}}
+                for cell_type_id in (fleet["cell_type_id"], kind["id"])
+                for hours, amount in ((12, 1200), (24, 1800), (48, 2600))
+            ]
+        })
+        await call("GET", f"/api/v1/admin/tariffs?city_id={fleet['city_id']}",
+                   headers=panel)
+
+        print(f"\n{YELLOW}-- cells --{RESET}")
+        await call("GET", f"/api/v1/admin/cells?postamat_id={made['id']}",
+                   headers=panel)
+        await call("POST", "/api/v1/admin/cells/bulk", expect=201,
+                   headers=panel | key(),
+                   json={"postamat_id": made["id"], "grid_rows": 2, "grid_cols": 2,
+                         "layout": [{"cell_type_id": fleet["cell_type_id"],
+                                     "count": 4}],
+                         "hardware_start": {"board": 2, "output": 1}})
+        cell = await call("POST", "/api/v1/admin/cells", expect=201,
+                          headers=panel | key(),
+                          json={"postamat_id": made["id"], "number": "99",
+                                "cell_type_id": kind["id"], "row": 3, "col": 1,
+                                "hardware_address": {"board": 3, "output": 1}})
+        await call("GET", f"/api/v1/admin/cells/{cell['id']}", headers=panel)
+        await call("PATCH", f"/api/v1/admin/cells/{cell['id']}", headers=panel,
+                   json={"row": 3, "col": 2})
+        await call("POST", f"/api/v1/admin/cells/{cell['id']}/maintenance",
+                   headers=panel | key(),
+                   json={"enabled": True, "reason": "Замок заедает"})
+        await call("POST", f"/api/v1/admin/cells/{cell['id']}/maintenance",
+                   headers=panel | key(), json={"enabled": False})
+        await call("POST", f"/api/v1/admin/cells/{cell['id']}/block",
+                   headers=panel | key(), json={"reason": "Дверь не закрывается"})
+        await call("POST", f"/api/v1/admin/cells/{cell['id']}/unblock",
+                   headers=panel | key(), json={"parcel_fate": "cell_was_empty"})
+        # Declared but not yet real: the lock agent it would command arrives with
+        # the kiosk, and until then the endpoint refuses honestly.
+        await call("POST", f"/api/v1/admin/cells/{cell['id']}/remote-open",
+                   expect=503, headers=panel | key(),
+                   json={"reason": "Клиент забыл посылку, звонит оператору"})
+
+        print(f"\n{YELLOW}-- custody --{RESET}")
+        removable = await parcel_to_remove(maker, fleet)
+        act = await call("POST", "/api/v1/admin/custody", expect=201,
+                         headers=panel | key(),
+                         json={"booking_id": removable,
+                               "reason": "Срок вышел, ячейка нужна",
+                               "description": "Коробка 30×20, скотч"})
+        await call("GET", "/api/v1/admin/custody?status=at_counter", headers=panel)
+        await call("GET", f"/api/v1/admin/custody/{act['id']}", headers=panel)
+        await custody_is_due(maker)
+        await call("POST", f"/api/v1/admin/custody/{act['id']}/dispose",
+                   headers=panel | key(),
+                   json={"outcome": "returned_to_sender",
+                         "reason": "Отправитель забрал на пункте"})
+
         print(f"\n{YELLOW}-- sign out --{RESET}")
         await call("POST", "/api/v1/auth/logout", expect=204, headers=bearer,
                    json={"refresh_token": tokens["refresh_token"]})
+        await call("POST", "/api/v1/admin/auth/logout", expect=204, headers=panel,
+                   json={"refresh_token": staff["refresh_token"]})
 
     await engine.dispose()
     DB_FILE.unlink(missing_ok=True)
     print(f"\n{GREEN}{_checked - _failed} payloads match the contract{RESET}, "
           f"{RED}{_failed} do not{RESET}\n")
+    for where, reason in sorted(_deviations_seen.items()):
+        print(f"{YELLOW}departure {where}{RESET}: {reason}")
     return 1 if _failed else 0
 
 

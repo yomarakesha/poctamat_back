@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, time
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 from app.core.pagination import PageMeta
 from app.core.types import utc_isoformat
@@ -144,7 +144,24 @@ class BlockRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
-class PostamatOut(BaseModel):
+class LocationOmitted(BaseModel):
+    """Leave `location` out of the payload rather than sending it as null.
+
+    The contract types it as a GeoPoint and does not make it nullable: a machine
+    whose coordinates nobody has entered has no location, and `null` fails the
+    panel's own generated validation. Every other optional field here is
+    declared nullable in the contract and stays as it is.
+    """
+
+    @model_serializer(mode="wrap")
+    def _drop_empty_location(self, handler):
+        data = handler(self)
+        if data.get("location") is None:
+            data.pop("location", None)
+        return data
+
+
+class PostamatOut(LocationOmitted):
     id: uuid.UUID
     number: str
     name: str
@@ -189,7 +206,7 @@ class PostamatPage(BaseModel):
     pagination: PageMeta
 
 
-class PostamatPublicOut(BaseModel):
+class PostamatPublicOut(LocationOmitted):
     id: uuid.UUID
     number: str
     name: str

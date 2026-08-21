@@ -178,10 +178,13 @@ modify `backend/app/modules/catalog/models.py` if the provisioning code needs st
 
 **Files:** modify `backend/app/api/admin/{postamats,cells,tariffs,custody}.py`; tests.
 
-- [ ] Postamats, cells, tariffs and custody answer the contract's schemas — field names, enum
+- [x] Postamats, cells, tariffs and custody answer the contract's schemas — field names, enum
       values, pagination envelopes, `Money` objects.
-- [ ] `scripts/contract_walk.py` grows an admin walk covering these, and it passes.
-- [ ] Suite green, commit.
+- [x] `scripts/contract_walk.py` grows an admin walk covering these, and it passes. Deliberate
+      departures are declared in the walk and printed on every run rather than failing it — at
+      present only the custody act's absent `photo_url` (Ruling Q2, reaffirmed by the operator on
+      2026-08-21).
+- [x] Suite green, commit.
 
 ### Task 10: Check it and hand it over
 

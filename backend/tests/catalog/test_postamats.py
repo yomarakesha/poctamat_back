@@ -299,3 +299,30 @@ async def test_working_hours_are_read_off_the_schedule_when_nobody_typed_them(
     detail = await client.get(f"/api/v1/admin/postamats/{postamat.id}",
                               headers=headers)
     assert detail.json()["working_hours"] == "09:00–18:00"
+
+
+async def test_a_postamat_without_coordinates_omits_location(
+    client, admin_token, city
+):
+    # The contract types `location` as a GeoPoint and does not make it nullable,
+    # so a machine nobody has placed on the map leaves the field out rather than
+    # sending null — which the panel's generated client refuses.
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    created = await client.post("/api/v1/admin/postamats", headers=headers, json={
+        "number": "10099", "name": "ТП без координат", "city_id": str(city.id),
+        "address": "ул. Огузхан, 5",
+    })
+    assert created.status_code == 201
+    assert "location" not in created.json()
+
+    listed = await client.get("/api/v1/admin/postamats", headers=headers)
+    assert all("location" not in item for item in listed.json()["items"])
+
+
+async def test_coordinates_are_reported_when_they_exist(client, admin_token, city):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    created = await client.post("/api/v1/admin/postamats", headers=headers, json={
+        "number": "10098", "name": "ТП на карте", "city_id": str(city.id),
+        "address": "ул. Огузхан, 6", "location": {"lat": 37.95, "lon": 58.38},
+    })
+    assert created.json()["location"] == {"lat": 37.95, "lon": 58.38}

@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -132,6 +132,19 @@ class CellWithState(ContractCell):
     # Null until a door sensor reports, which is Plan 3. Absent would be a lie of
     # a different kind: the panel would draw «закрыта» for a door nobody asked.
     door_open: bool | None
+
+    @model_serializer(mode="wrap")
+    def _drop_unset_moment(self, handler):
+        """Leave `status_changed_at` out rather than sending it as null.
+
+        The contract types it as a Timestamp and does not make it nullable, so
+        `null` fails the panel's generated validation. A cell whose status has
+        never been touched simply has no such moment.
+        """
+        data = handler(self)
+        if data.get("status_changed_at") is None:
+            data.pop("status_changed_at", None)
+        return data
 
 
 class CellPage(BaseModel):
