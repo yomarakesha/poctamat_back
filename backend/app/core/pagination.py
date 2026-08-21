@@ -45,6 +45,10 @@ def page_params(
 class CursorMeta(BaseModel):
     next_cursor: str | None = None
     has_more: bool
+    # The audit log's own field, and the contract puts it here rather than
+    # beside `items`: set when the requested range reaches past the one-year hot
+    # window. Null everywhere else.
+    truncated_at: str | None = None
 
 
 @dataclass

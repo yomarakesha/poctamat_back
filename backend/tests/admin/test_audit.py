@@ -152,8 +152,8 @@ async def test_a_range_older_than_the_hot_window_says_where_it_was_cut(
 
     response = await client.get(f"{PATH}?from={since}", headers=auditor_headers)
     body = response.json()
-    assert body["truncated_at"] is not None
-    assert body["truncated_at"].endswith("Z")
+    assert body["pagination"]["truncated_at"] is not None
+    assert body["pagination"]["truncated_at"].endswith("Z")
 
 
 async def test_a_range_inside_the_hot_window_is_not_truncated(
@@ -162,7 +162,7 @@ async def test_a_range_inside_the_hot_window_is_not_truncated(
     since = _stamp(utcnow() - timedelta(days=7))
 
     response = await client.get(f"{PATH}?from={since}", headers=auditor_headers)
-    assert response.json()["truncated_at"] is None
+    assert response.json()["pagination"]["truncated_at"] is None
 
 
 async def test_reading_the_log_is_itself_audited_but_only_once_an_hour(

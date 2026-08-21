@@ -44,10 +44,9 @@ SEVERITY_PATTERN = "^(info|warning|error)(,(info|warning|error))*$"
 
 class AuditPage(BaseModel):
     items: list[views.AuditLogEntry]
+    # `truncated_at` travels inside the pagination envelope, where the contract
+    # puts it: set when the requested range reaches past the hot window.
     pagination: CursorMeta
-    # Cursor pagination plus the one field the contract reserves for this
-    # endpoint: set when the requested range reaches past the hot window.
-    truncated_at: str | None = None
 
 
 class AuditFilters(BaseModel):
@@ -167,7 +166,8 @@ async def list_audit_log(
     rows, meta = await paginate_cursor(session, stmt, params, AuditEntry.created_at)
     items = await views.entries(session, list(rows))
     await _note_read(session, actor, spec)
-    return AuditPage(items=items, pagination=meta, truncated_at=truncated_at)
+    meta.truncated_at = truncated_at
+    return AuditPage(items=items, pagination=meta)
 
 
 CSV_HEADER = [

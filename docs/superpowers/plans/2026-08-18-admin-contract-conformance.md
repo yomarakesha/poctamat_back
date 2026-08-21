@@ -191,12 +191,20 @@ modify `backend/app/modules/catalog/models.py` if the provisioning code needs st
 **Files:** `backend/scripts/contract_coverage.py`, `backend/scripts/contract_walk.py`,
 `postbox-contract/HANDOVER-ADMIN.md`, `README.md`, this ledger.
 
-- [ ] `contract_coverage.py --all` shows every admin operation answered except the refund (D1), and
-      the kiosk 23 named as Plan 3.
-- [ ] Schemathesis over the admin tags against a seeded server, fixing what it finds.
-- [ ] `HANDOVER-ADMIN.md` for the panel developer: base URL, how to authenticate, permissions per
+- [x] `contract_coverage.py --all` shows every admin operation answered except the refund (D1), and
+      the kiosk named as Plan 3 — 17 operations, not 23, because the count included the client's
+      half of the QR sign-in. The script now separates «waiting on the hardware», «declared
+      unbuilt» and «unexplained», and exits non-zero on the third.
+- [x] Schemathesis over the admin tags against a seeded server, fixing what it finds: two 500s on
+      unguarded input, authentication decided after the idempotency key, `GET /admin/roles`
+      returning a bare array, the search parameter named `query` instead of `q`, page and limit
+      ceilings below the contract's, a 405 losing its `Allow` header, four postamat writes not
+      requiring `Idempotency-Key`, and `truncated_at` outside the pagination envelope. What
+      remains is the contract under-documenting 401/403/404/422 per operation, which is named in
+      the handover.
+- [x] `HANDOVER-ADMIN.md` for the panel developer: base URL, how to authenticate, permissions per
       endpoint, what is an extension rather than contract (D3), and what is not built (D1, D4).
-- [ ] Suite green, commit.
+- [x] Suite green, commit.
 
 ## Definition of done
 
