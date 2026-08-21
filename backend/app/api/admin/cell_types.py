@@ -51,9 +51,12 @@ class CellTypeWrite(BaseModel):
     name_tk: str | None = Field(default=None, max_length=50)
     name_ru: str | None = Field(default=None, max_length=50)
     name_en: str | None = Field(default=None, max_length=50)
-    width_mm: int | None = Field(default=None, ge=1)
-    height_mm: int | None = Field(default=None, ge=1)
-    depth_mm: int | None = Field(default=None, ge=1)
+    # Millimetres, with a ceiling of five metres: no drawer in a postamat is
+    # larger, and an unbounded integer reaches the database as a number it
+    # cannot store, which answers 500 instead of «так не бывает».
+    width_mm: int | None = Field(default=None, ge=1, le=5000)
+    height_mm: int | None = Field(default=None, ge=1, le=5000)
+    depth_mm: int | None = Field(default=None, ge=1, le=5000)
 
 
 def _out(row: CellType, cell_count: int) -> CellTypeOut:

@@ -326,3 +326,26 @@ async def test_coordinates_are_reported_when_they_exist(client, admin_token, cit
         "address": "ул. Огузхан, 6", "location": {"lat": 37.95, "lon": 58.38},
     })
     assert created.json()["location"] == {"lat": 37.95, "lon": 58.38}
+
+
+async def test_the_list_searches_number_name_and_address(
+    client, admin_token, city, postamat
+):
+    # `q`, the contract's one search parameter, over what an operator has in
+    # front of them when a customer telephones about «тот, что у почты».
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    await client.post("/api/v1/admin/postamats", headers=headers, json={
+        "number": "20001", "name": "ТП у почты", "city_id": str(city.id),
+        "address": "ул. Почтовая, 1",
+    })
+
+    by_name = await client.get("/api/v1/admin/postamats?q=у почты", headers=headers)
+    assert [item["number"] for item in by_name.json()["items"]] == ["20001"]
+
+    by_address = await client.get("/api/v1/admin/postamats?q=Почтовая",
+                                  headers=headers)
+    assert len(by_address.json()["items"]) == 1
+
+    by_number = await client.get(f"/api/v1/admin/postamats?q={postamat.number}",
+                                 headers=headers)
+    assert [item["id"] for item in by_number.json()["items"]] == [str(postamat.id)]

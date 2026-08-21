@@ -34,7 +34,10 @@ MAX_PAGE = 10_000
 
 
 def page_params(
-    page: int = Query(1, ge=1, le=MAX_PAGE), per_page: int = Query(20, ge=1, le=100)
+    # 200 is the contract's ceiling for `per_page`, and matching it matters: a
+    # page size the contract permits and this server refuses is a panel screen
+    # that fails against its own generated client.
+    page: int = Query(1, ge=1, le=MAX_PAGE), per_page: int = Query(20, ge=1, le=200)
 ) -> PageParams:
     return PageParams(page=page, per_page=per_page)
 

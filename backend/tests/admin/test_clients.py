@@ -70,7 +70,7 @@ async def test_the_table_can_be_searched_and_filtered(
     await session.commit()
     headers = {"Authorization": f"Bearer {staff_token}"}
 
-    by_name = await client.get("/api/v1/admin/clients?query=Гулы", headers=headers)
+    by_name = await client.get("/api/v1/admin/clients?q=Гулы", headers=headers)
     assert [item["phone"] for item in by_name.json()["items"]] == ["+99361000042"]
 
     by_phone = await client.get("/api/v1/admin/clients?phone=1000001", headers=headers)

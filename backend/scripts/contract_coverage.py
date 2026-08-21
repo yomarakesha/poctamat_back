@@ -34,6 +34,18 @@ CLIENT_TAGS = {
 }
 
 
+# Why an operation is not built. Anything unbuilt and unlisted here is a gap
+# rather than a decision, and prints as one.
+DECLARED = {
+    "adminRefundBooking":
+        "Ruling D1 — this system does not refund, so the endpoint stays unbuilt "
+        "rather than always failing.",
+}
+# The kiosk waits on the hardware it drives; it is Plan 3 in full. The phone's
+# half of the QR sign-in carries the same tag and waits for the same reason.
+PLAN_THREE_TAGS = {"Auth (kiosk)", "Kiosk", "Kiosk (staff)"}
+
+
 def shape(path: str) -> str:
     """A route with its parameter names blanked, so only the shape matters."""
     return re.sub(r"\{[^}]+\}", "{}", path)
@@ -54,6 +66,8 @@ def main() -> int:
     mine = ours()
 
     have: list[str] = []
+    waiting: list[str] = []
+    declared: list[str] = []
     missing: list[str] = []
     for path, item in spec["paths"].items():
         for method, operation in item.items():
@@ -62,17 +76,34 @@ def main() -> int:
             tags = set(operation.get("tags") or [])
             if not everything and not (tags & CLIENT_TAGS):
                 continue
-            line = f"{method.upper():6} {path:52} {operation.get('operationId', '')}"
-            (have if (shape(path), method) in mine else missing).append(line)
+            name = operation.get("operationId", "")
+            line = f"{method.upper():6} {path:52} {name}"
+            if (shape(path), method) in mine:
+                have.append(line)
+            elif tags & PLAN_THREE_TAGS:
+                waiting.append(line)
+            elif name in DECLARED:
+                declared.append(f"{line}\n         {DECLARED[name]}")
+            else:
+                missing.append(line)
 
     print(f"\nAnswered ({len(have)}):\n")
     for line in sorted(have):
         print(f"  {line}")
-    print(f"\nNot built ({len(missing)}):\n")
+    print(f"\nPlan 3, waiting on the hardware ({len(waiting)}):\n")
+    for line in sorted(waiting):
+        print(f"  {line}")
+    print(f"\nDeclared not built ({len(declared)}):\n")
+    for line in sorted(declared):
+        print(f"  {line}")
+    print(f"\nUnexplained gaps ({len(missing)}):\n")
     for line in sorted(missing):
         print(f"  {line}")
-    print(f"\n{len(have)}/{len(have) + len(missing)} operations answered.\n")
-    return 0
+    total = len(have) + len(waiting) + len(declared) + len(missing)
+    print(f"\n{len(have)}/{total} operations answered; {len(waiting)} wait on the "
+          f"kiosk, {len(declared)} declared unbuilt, {len(missing)} unexplained.\n")
+    # A gap nobody has decided about is what this script exists to catch.
+    return 1 if missing else 0
 
 
 if __name__ == "__main__":

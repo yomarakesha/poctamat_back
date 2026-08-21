@@ -10,7 +10,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
@@ -145,6 +145,7 @@ async def _details(session: AsyncSession, postamat: Postamat) -> PostamatDetails
 
 @router.get("", response_model=PostamatPage)
 async def list_postamats(
+    query: str | None = Query(default=None, alias="q", max_length=200),
     city_id: uuid.UUID | None = Query(default=None),
     status: PostamatStatus | None = Query(default=None),
     params: PageParams = Depends(page_params),
@@ -152,6 +153,14 @@ async def list_postamats(
     _: AdminUser = Depends(require_permission("postamats.read")),
 ) -> PostamatPage:
     stmt = select(Postamat).order_by(Postamat.number)
+    if query:
+        # Number, name and address: what an operator has in front of them when
+        # a customer telephones about «тот, что у почты».
+        stmt = stmt.where(or_(
+            Postamat.number.ilike(f"%{query}%"),
+            Postamat.name.ilike(f"%{query}%"),
+            Postamat.address.ilike(f"%{query}%"),
+        ))
     if city_id is not None:
         stmt = stmt.where(Postamat.city_id == city_id)
     if status is not None:

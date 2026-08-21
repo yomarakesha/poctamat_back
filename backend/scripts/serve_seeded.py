@@ -38,10 +38,19 @@ import uvicorn  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 
 from app.core.db import Base  # noqa: E402
-from app.core.security import create_access_token  # noqa: E402
+from app.core.security import create_access_token, hash_secret  # noqa: E402
 from app.main import app  # noqa: E402
 
 PORT = 8100
+# Everything the admin routers ask for. Anything narrower would make the check
+# report an access-control refusal as a contract failure.
+PERMISSIONS = (
+    "audit.read", "bookings.read", "bookings.write", "cells.read",
+    "cells.remote_open", "cells.write", "clients.read", "clients.write",
+    "custody.read", "custody.write", "devices.read", "devices.write",
+    "postamats.read", "postamats.write", "roles.read", "tariffs.read",
+    "tariffs.write", "users.read", "users.write",
+)
 
 
 async def seed() -> dict:
@@ -54,7 +63,7 @@ async def seed() -> dict:
     import app.modules.payments.models  # noqa: F401
     from app.modules.booking import service as booking_service
     from app.modules.catalog.models import Cell, CellType, City, Postamat, Tariff
-    from app.modules.identity.models import Client
+    from app.modules.identity.models import AdminUser, Client, Role
 
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
@@ -92,9 +101,20 @@ async def seed() -> dict:
             currency="TMT", recipient_phone="+99365000001",
             recipient_name="Получатель", depositor="owner", courier_phone=None,
         )
+        # An operator holding every permission: the admin half is checked for
+        # payload shapes, and a 403 would answer nothing about those.
+        role = Role(code="root", name="Root", permissions=list(PERMISSIONS))
+        session.add(role)
+        await session.flush()
+        admin = AdminUser(login="checker", full_name="Проверов П.П.",
+                          password_hash=hash_secret("checker-secret-1"),
+                          role_id=role.id)
+        session.add(admin)
         await session.commit()
+
         seeded = {
             "token": create_access_token("client", client.id),
+            "admin_token": create_access_token("admin", admin.id),
             "client_id": str(client.id),
             "postamat_id": str(postamat.id),
             "cell_type_id": str(cell_type.id),

@@ -123,7 +123,7 @@ async def _client_or_404(session: AsyncSession, client_id: uuid.UUID) -> Client:
 
 @router.get("", response_model=ClientPage)
 async def list_clients(
-    query: str | None = Query(default=None),
+    query: str | None = Query(default=None, alias="q", max_length=200),
     first_name: str | None = Query(default=None),
     last_name: str | None = Query(default=None),
     phone: str | None = Query(default=None),

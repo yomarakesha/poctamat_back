@@ -38,9 +38,13 @@ class TariffWrite(BaseModel):
 
     @field_validator("price")
     @classmethod
-    def _not_negative(cls, value: Money) -> Money:
+    def _a_believable_price(cls, value: Money) -> Money:
         if value.amount_minor < 0:
             raise ValueError("price.amount_minor must not be negative")
+        # A ceiling of ten thousand manat per rental: far above any real price,
+        # and far below an integer the database cannot store.
+        if value.amount_minor > 1_000_000:
+            raise ValueError("price.amount_minor is implausibly large")
         return value
 
 

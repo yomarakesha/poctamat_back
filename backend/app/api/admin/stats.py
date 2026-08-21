@@ -190,7 +190,7 @@ async def peak_hours(
 
 @router.get("/recent-events", response_model=RecentEvents)
 async def recent_events(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
     _: AdminUser = Depends(require_permission("bookings.read")),
 ) -> RecentEvents:
@@ -202,7 +202,7 @@ async def recent_events(
 
 @router.get("/recent-bookings", response_model=RecentBookings)
 async def recent_bookings(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
     _: AdminUser = Depends(require_permission("bookings.read")),
 ) -> RecentBookings:

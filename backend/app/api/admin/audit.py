@@ -63,7 +63,9 @@ class AuditFilters(BaseModel):
 
 
 def filters(
-    query: str | None = Query(default=None, max_length=200),
+    # `q` on the wire: the contract shares one search parameter across every
+    # list that has one, and a panel generated from it sends that name.
+    query: str | None = Query(default=None, alias="q", max_length=200),
     source: str | None = Query(default=None,
                                description="Comma-separated list of sources."),
     actor_id: uuid.UUID | None = Query(default=None),

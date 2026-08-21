@@ -107,7 +107,8 @@ class AppError(Exception):
 
 
 def _envelope(request: Request, code: str, message: str,
-              details: dict[str, Any] | None, status_code: int) -> JSONResponse:
+              details: dict[str, Any] | None, status_code: int,
+              headers: dict[str, str] | None = None) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
         content={
@@ -118,6 +119,7 @@ def _envelope(request: Request, code: str, message: str,
                 "trace_id": getattr(request.state, "trace_id", None),
             }
         },
+        headers=headers,
     )
 
 
@@ -151,4 +153,8 @@ def install_error_handlers(app: FastAPI) -> None:
             415: ErrorCode.UNSUPPORTED_MEDIA_TYPE,
             429: ErrorCode.RATE_LIMITED,
         }.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
-        return _envelope(request, code, str(exc.detail), None, exc.status_code)
+        # Starlette's own headers travel with the answer: a 405 carries `Allow`,
+        # which RFC 9110 requires and a client uses to know what it may send
+        # instead. Rewriting the body must not lose them.
+        return _envelope(request, code, str(exc.detail), None, exc.status_code,
+                         headers=getattr(exc, "headers", None))

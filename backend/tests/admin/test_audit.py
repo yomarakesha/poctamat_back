@@ -117,7 +117,7 @@ async def test_the_free_text_search_reads_message_event_and_actor(
     await _entry(session, message="Дверь заклинило.", event="lock_agent.error")
     await _entry(session, message="Ячейка открыта.")
 
-    response = await client.get(f"{PATH}?query=заклинило", headers=auditor_headers)
+    response = await client.get(f"{PATH}?q=заклинило", headers=auditor_headers)
     assert [one["message"] for one in response.json()["items"]] == [
         "Дверь заклинило."
     ]

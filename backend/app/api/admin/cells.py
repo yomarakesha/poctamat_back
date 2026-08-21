@@ -41,13 +41,16 @@ class UnblockRequest(BaseModel):
 
 
 class HardwareAddress(BaseModel):
-    board: int = Field(ge=0)
-    output: int = Field(ge=0)
+    # Bounded well above any real board, and far below what would reach the
+    # database as a number it cannot store: an unbounded integer from a form
+    # field is a 500 waiting to happen.
+    board: int = Field(ge=0, le=255)
+    output: int = Field(ge=0, le=255)
 
 
 class LayoutEntry(BaseModel):
     cell_type_id: uuid.UUID
-    count: int = Field(ge=1)
+    count: int = Field(ge=1, le=400)
 
 
 class GridBulkCreate(BaseModel):
@@ -189,6 +192,18 @@ def _door_number(number: str) -> int:
     return int(number)
 
 
+def _uuids(values: list[str]) -> list[uuid.UUID]:
+    """Read a comma-separated id filter without letting a typo become a 500."""
+    parsed = []
+    for value in values:
+        try:
+            parsed.append(uuid.UUID(value.strip()))
+        except ValueError:
+            raise AppError(ErrorCode.VALIDATION_ERROR, "Malformed identifier.", 422,
+                           details={"cell_type_id": value}) from None
+    return parsed
+
+
 def _apply_write(cell: Cell, payload: CellWrite) -> list[str]:
     changed: list[str] = []
     for field in ("postamat_id", "cell_type_id", "row", "col",
@@ -266,7 +281,7 @@ async def create_cell(
 
 @router.get("", response_model=CellPage)
 async def list_cells(
-    query: str | None = Query(default=None, max_length=100),
+    query: str | None = Query(default=None, alias="q", max_length=200),
     postamat_id: uuid.UUID | None = Query(default=None),
     status: str | None = Query(default=None,
                                description="Comma-separated CellStatus values."),
@@ -286,7 +301,7 @@ async def list_cells(
             select(Postamat.id).where(Postamat.city_id == city_id)
         ))
     if types := [part for part in (cell_type_id or "").split(",") if part.strip()]:
-        stmt = stmt.where(Cell.cell_type_id.in_([uuid.UUID(one) for one in types]))
+        stmt = stmt.where(Cell.cell_type_id.in_(_uuids(types)))
     if query:
         stmt = stmt.where(Cell.postamat_id.in_(
             select(Postamat.id).where(or_(

@@ -16,6 +16,24 @@ from app.core.errors import AppError, ErrorCode
 from app.core.security import decode_token
 
 
+def _authenticated(request: Request) -> None:
+    """Refuse a caller whose bearer token is missing, expired or forged.
+
+    Only the token is checked here — whether that principal may do this is the
+    route's own business, and answering that question twice in two places is
+    how the two answers drift apart.
+    """
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        raise AppError(ErrorCode.TOKEN_INVALID, "Missing bearer token.", 401)
+    try:
+        decode_token(header.removeprefix("Bearer "))
+    except jwt.ExpiredSignatureError:
+        raise AppError(ErrorCode.TOKEN_EXPIRED, "Access token expired.", 401) from None
+    except jwt.PyJWTError:
+        raise AppError(ErrorCode.TOKEN_INVALID, "Access token invalid.", 401) from None
+
+
 def require_idempotency_key(request: Request) -> str:
     """Refuse a write that cannot be retried safely.
 
@@ -23,7 +41,14 @@ def require_idempotency_key(request: Request) -> str:
     after a dropped connection, or a double tap on the button, would otherwise
     take a second cell that nobody is coming to fill. The key is what lets the
     middleware answer the repeat with the first response instead.
+
+    A caller the server does not recognise is turned away first. FastAPI
+    resolves this dependency before the route's own auth, so without this check
+    an unauthenticated request would be told which header it is missing —
+    answering 400 where the contract documents 401, and telling a stranger
+    about the endpoint's requirements before asking who they are.
     """
+    _authenticated(request)
     key = request.headers.get("Idempotency-Key")
     if not key:
         raise AppError(

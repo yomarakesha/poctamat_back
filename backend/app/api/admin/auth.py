@@ -81,10 +81,16 @@ async def me(admin: AdminUser = Depends(require_admin)) -> AdminUserOut:
     return staff_service.admin_out(admin)
 
 
-@router.get("/roles", response_model=list[RoleOut])
+class RoleList(BaseModel):
+    # An `items` envelope rather than a bare array, because that is what the
+    # contract types and what the panel's generated client reads.
+    items: list[RoleOut]
+
+
+@router.get("/roles", response_model=RoleList)
 async def list_roles(
     session: AsyncSession = Depends(get_session),
     _: AdminUser = Depends(require_permission("roles.read")),
-) -> list[RoleOut]:
+) -> RoleList:
     rows = await session.scalars(select(Role).order_by(Role.code))
-    return [staff_service.role_out(row) for row in rows]
+    return RoleList(items=[staff_service.role_out(row) for row in rows])
