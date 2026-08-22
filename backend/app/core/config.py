@@ -62,6 +62,22 @@ class Settings(BaseSettings):
     sms_base_url: str = "https://sms.post.tm"
     sms_timeout_seconds: float = 10.0
 
+    # Push. "log" records instead of sending, same as SMS in development and in
+    # tests. "fcm" is Firebase Cloud Messaging HTTP v1, which serves both
+    # platforms a `PushToken` can name; the three fields below come from a
+    # Firebase service account's JSON key.
+    push_provider: str = "log"
+    fcm_project_id: str = ""
+    fcm_client_email: str = ""
+    fcm_private_key: str = ""
+    fcm_timeout_seconds: float = 10.0
+
+    # How often the hold-release and overdue-escalation workers tick, run
+    # in-process from `app.main`'s lifespan. Short enough that a reminder or an
+    # expiry is never more than this late; long enough not to hammer SQLite's
+    # single writer.
+    worker_interval_seconds: int = 60
+
     # The overdue clock. Every stage is configuration because the product will
     # tune these without a deploy, and because a literal buried in a worker is a
     # rule nobody can find.

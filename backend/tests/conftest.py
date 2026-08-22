@@ -72,6 +72,17 @@ def reset_sms():
 
 
 @pytest.fixture(autouse=True)
+def reset_push():
+    # Same reason as reset_sms: a fresh outbox per test, and no real provider
+    # left cached from a stray PUSH_PROVIDER in the environment.
+    from app.modules.notify.push import reset_push_provider
+
+    reset_push_provider()
+    yield
+    reset_push_provider()
+
+
+@pytest.fixture(autouse=True)
 def reset_kvstore():
     from app.core.kvstore import get_kvstore
 

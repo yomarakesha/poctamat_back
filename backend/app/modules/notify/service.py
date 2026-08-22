@@ -1,14 +1,17 @@
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import utcnow
+from app.modules.identity.models import PushToken
 from app.modules.notify.models import (
     Notification,
     NotificationChannel,
     NotificationKind,
 )
+from app.modules.notify.push import get_push_provider
 from app.modules.notify.sms import get_sms_provider
 
 # (kind, language) -> (title, in-app body, SMS text). The in-app body never
@@ -150,4 +153,27 @@ async def notify(
                 # A failed SMS must not fail the booking that triggered it. The
                 # error is stored so an operator can see what never arrived.
                 row.error = str(error)[:500]
+
+    elif channel == NotificationChannel.PUSH:
+        if not client_id:
+            row.error = "no client"
+        else:
+            devices = list(await session.scalars(
+                select(PushToken).where(
+                    PushToken.client_id == client_id, PushToken.revoked_at.is_(None),
+                )
+            ))
+            if not devices:
+                row.error = "no push tokens"
+            else:
+                errors: list[str] = []
+                for device in devices:
+                    try:
+                        await get_push_provider().send(device.token, title, row.body)
+                        row.sent_at = utcnow()
+                    except Exception as error:  # noqa: BLE001 - one bad device
+                        # must not stop delivery to the client's other devices.
+                        errors.append(str(error)[:200])
+                if errors:
+                    row.error = "; ".join(errors)[:500]
     return row

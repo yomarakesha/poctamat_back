@@ -37,7 +37,8 @@
       "Bash(grep -E 'operationId|summary|required:|type: |enum|$ref|name:')",
       "Bash(.venv/Scripts/python.exe -c ' *)",
       "Bash(timeout 400 .venv/Scripts/python.exe -m pytest -q)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python scripts/contract_coverage.py --all)"
     ]
   }
 }

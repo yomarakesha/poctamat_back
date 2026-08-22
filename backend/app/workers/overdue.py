@@ -21,7 +21,11 @@ from app.modules.booking import service as booking_service
 from app.modules.booking.models import Booking, BookingStatus
 from app.modules.catalog.models import Postamat
 from app.modules.catalog.service import cell_numbers, is_open_at, next_opening_after
-from app.modules.notify.models import NotificationChannel, NotificationKind
+from app.modules.notify.models import (
+    NotificationChannel,
+    NotificationKind,
+    NotificationSettings,
+)
 from app.modules.notify.service import notify
 
 WATCHED = (
@@ -39,6 +43,22 @@ async def _postamats(
         return {}
     rows = await session.scalars(select(Postamat).where(Postamat.id.in_(list(ids))))
     return {row.id: row for row in rows}
+
+
+async def _push_expiring_enabled(
+    session: AsyncSession, ids: set[uuid.UUID]
+) -> dict[uuid.UUID, bool]:
+    """A client who never opened the settings screen has no row, and the
+    column defaults to on — so a missing row reads the same as one that says
+    yes, rather than silently opting a client out of a reminder they never
+    declined.
+    """
+    if not ids:
+        return {}
+    rows = await session.scalars(
+        select(NotificationSettings).where(NotificationSettings.client_id.in_(list(ids)))
+    )
+    return {row.client_id: row.push_expiring_soon for row in rows}
 
 
 def _reachable(postamat: Postamat | None, moment: datetime) -> datetime:
@@ -71,6 +91,9 @@ async def run_escalation(
 
     postamats = await _postamats(session, {row.postamat_id for row in live})
     numbers = await cell_numbers(session, [row.cell_id for row in live])
+    push_expiring = await _push_expiring_enabled(
+        session, {row.client_id for row in live if row.client_id}
+    )
 
     for booking in live:
         expires_at = booking_service.as_utc(booking.expires_at)
@@ -106,6 +129,14 @@ async def run_escalation(
                     cell_number=cell_number,
                     hours=settings.reminder_hours_before,
                 )
+                if booking.client_id and push_expiring.get(booking.client_id, True):
+                    await notify(
+                        session, client_id=booking.client_id, phone=None,
+                        kind=NotificationKind.BOOKING_EXPIRING, language=language,
+                        channel=NotificationChannel.PUSH, booking_id=booking.id,
+                        cell_number=cell_number,
+                        hours=settings.reminder_hours_before,
+                    )
                 counts["reminded"] += 1
 
         elif booking.status == BookingStatus.EXPIRED:

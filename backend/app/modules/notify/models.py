@@ -11,6 +11,7 @@ from app.core.db import Base, Timestamped, UUIDPrimaryKey
 class NotificationChannel(StrEnum):
     IN_APP = "in_app"
     SMS = "sms"
+    PUSH = "push"
 
 
 class NotificationKind(StrEnum):

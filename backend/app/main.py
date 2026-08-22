@@ -1,3 +1,9 @@
+import asyncio
+import contextlib
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI
 
 from app.api.admin import audit as admin_audit
@@ -21,11 +27,15 @@ from app.api.public import catalog as public_catalog
 from app.api.public import media as public_media
 from app.api.public import postamats as public_postamats
 from app.api.webhooks import payments as payment_webhooks
+from app.core.config import get_settings
 from app.core.context import RequestContextMiddleware
 from app.core.errors import install_error_handlers
 from app.core.idempotency import IdempotencyMiddleware
+from app.workers import holds, overdue
 
 API_PREFIX = "/api/v1"
+
+logger = logging.getLogger("app.workers")
 
 health_router = APIRouter()
 
@@ -35,8 +45,43 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+async def _run_workers_forever(interval_seconds: int) -> None:
+    """Tick the hold-release and overdue-escalation workers in-process.
+
+    Runs immediately on startup — so a process that was down for a while
+    catches up right away rather than waiting a full interval — then on the
+    configured cadence. One bad tick is logged and the loop keeps going: a
+    worker that dies silently on the first exception is worse than one that
+    is occasionally late.
+    """
+    while True:
+        try:
+            released = await holds.run_once()
+            counts = await overdue.run_once()
+            if released or any(counts.values()):
+                logger.info("workers: released=%d escalation=%s", released, counts)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - a bad tick must not kill the loop
+            logger.exception("worker tick failed")
+        await asyncio.sleep(interval_seconds)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    task = asyncio.create_task(
+        _run_workers_forever(get_settings().worker_interval_seconds)
+    )
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Postamat API", version="1.0.0")
+    app = FastAPI(title="Postamat API", version="1.0.0", lifespan=lifespan)
     install_error_handlers(app)
     # RequestContextMiddleware must stay the OUTERMOST middleware, so that
     # request.state.trace_id is already set by the time anything inner runs.

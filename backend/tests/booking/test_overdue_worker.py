@@ -5,7 +5,14 @@ from sqlalchemy import select
 
 from app.modules.booking.models import Booking, BookingStatus
 from app.modules.catalog.models import PostamatSchedule
-from app.modules.notify.models import Notification, NotificationKind
+from app.modules.identity.models import PushToken
+from app.modules.notify.models import (
+    Notification,
+    NotificationChannel,
+    NotificationKind,
+    NotificationSettings,
+)
+from app.modules.notify.push import get_push_provider
 from app.workers.overdue import run_escalation
 
 
@@ -30,6 +37,41 @@ async def test_a_reminder_goes_out_before_expiry(session, postamat):
 
     kinds = set(await session.scalars(select(Notification.kind)))
     assert NotificationKind.BOOKING_EXPIRING in kinds
+
+
+async def test_a_push_reminder_follows_the_client_setting(session, postamat):
+    now = datetime(2026, 8, 17, 12, 0, tzinfo=timezone.utc)
+    booking = await _parcel(session, postamat, now + timedelta(hours=1))
+    session.add(PushToken(client_id=booking.client_id, token="dev-1", platform="android"))
+    await session.commit()
+
+    await run_escalation(session, now=now)
+
+    channels = set(await session.scalars(
+        select(Notification.channel).where(
+            Notification.kind == NotificationKind.BOOKING_EXPIRING
+        )
+    ))
+    assert NotificationChannel.PUSH in channels
+    assert get_push_provider().outbox[-1].token == "dev-1"
+
+
+async def test_a_push_reminder_is_skipped_when_the_client_opted_out(session, postamat):
+    now = datetime(2026, 8, 17, 12, 0, tzinfo=timezone.utc)
+    booking = await _parcel(session, postamat, now + timedelta(hours=1))
+    session.add(PushToken(client_id=booking.client_id, token="dev-1", platform="android"))
+    session.add(NotificationSettings(client_id=booking.client_id, push_expiring_soon=False))
+    await session.commit()
+
+    await run_escalation(session, now=now)
+
+    channels = set(await session.scalars(
+        select(Notification.channel).where(
+            Notification.kind == NotificationKind.BOOKING_EXPIRING
+        )
+    ))
+    assert NotificationChannel.PUSH not in channels
+    assert get_push_provider().outbox == []
 
 
 async def test_a_reminder_is_not_repeated_on_the_next_run(session, postamat):
