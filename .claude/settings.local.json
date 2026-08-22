@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py locker_uart.py --list)",
+      "Bash(grep -niE \"\\([0-9A-F]{2} \\){3,}|COM6|--baud|--sniff|--cell|reply|received|got |captured\" memory-2026-08-08.log)",
+      "mcp__plugin_figma_figma__get_metadata",
+      "mcp__plugin_figma_figma__get_screenshot",
+      "Bash(git init *)",
+      "Bash(git symbolic-ref *)",
+      "Bash(printf '__pycache__/\\\\n*.py[cod]\\\\n.venv/\\\\n.env\\\\n.pytest_cache/\\\\n.ruff_cache/\\\\n*.egg-info/\\\\n.superpowers/\\\\n')",
+      "Bash(git add *)",
+      "Bash(git -c user.name=claude -c user.email=noreply@anthropic.com commit -q -m \"chore: snapshot existing reverse-engineering material\")",
+      "Bash(cp app/core/idempotency.py /tmp_idempotency_backup.py)",
+      "Bash(cp app/core/idempotency.py \"C:\\\\Users\\\\yomarakesha\\\\Desktop\\\\projects\\\\poctamat\\\\backend\\\\idempotency.py.bak\")",
+      "Bash(rm backend/idempotency.py.bak)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(sed -i 's|docker compose run --rm api pytest|./.venv/Scripts/python.exe -m pytest|g; s|docker compose run --rm api alembic|./.venv/Scripts/python.exe -m alembic|g' task-1[1-7]-brief.md)",
+      "Bash(echo \"docker lines left: $?\")",
+      "Bash(sed -i 's/— health and schema —/-- health and schema --/; s/— error envelope —/-- error envelope --/; s/— client login by one-time code —/-- client login by one-time code --/; s/— public catalogue —/-- public catalogue --/; s/— admin —/-- admin --/; s/— idempotency —/-- idempotency --/; s/— authenticated as a client —/-- authenticated as a client --/' scripts/smoke.py)",
+      "Bash(./.venv/Scripts/python.exe -m scripts.smoke)",
+      "Bash(mkdir -p tests/booking app/modules/booking)",
+      "Bash(touch tests/booking/__init__.py app/modules/booking/__init__.py)",
+      "Bash(cp app/modules/booking/service.py /tmp/service.bak)",
+      "Bash(python -)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/booking/test_concurrency.py -q --tb=line)",
+      "Bash(cp /tmp/service.bak app/modules/booking/service.py)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/booking/test_concurrency.py -q)",
+      "Bash(mkdir -p app/modules/notify tests/notify)",
+      "Bash(touch app/modules/notify/__init__.py tests/notify/__init__.py)",
+      "Bash(mkdir -p app/modules/payments tests/payments app/api/webhooks)",
+      "Bash(touch app/modules/payments/__init__.py tests/payments/__init__.py app/api/webhooks/__init__.py)",
+      "Bash(mkdir -p app/modules/custody tests/custody)",
+      "Bash(touch app/modules/custody/__init__.py tests/custody/__init__.py)",
+      "Bash(awk '/^    BookingStatus:/{f=1} f&&/enum:/{print; getline; while \\($0 ~ /^ *- /\\) {print; getline}; exit}' openapi.yaml)",
+      "Bash(sed -n '/^    Booking:/,/^    BookingCreate\\\\|^    Payment:/p' openapi.yaml)",
+      "Bash(.venv/Scripts/python.exe scripts/contract_coverage.py --all)",
+      "Bash(grep -E 'operationId|summary|required:|type: |enum|$ref|name:')",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(timeout 400 .venv/Scripts/python.exe -m pytest -q)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}
