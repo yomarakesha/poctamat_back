@@ -5,6 +5,7 @@ from typing import Any, Protocol
 import httpx
 
 from app.core.config import get_settings
+from app.core.provider_cache import ProviderCache
 
 logger = logging.getLogger("app.sms")
 
@@ -80,28 +81,27 @@ class PostTmSmsProvider:
             return ""
 
 
-_provider: SmsProvider | None = None
+def _build_sms_provider() -> SmsProvider:
+    settings = get_settings()
+    if settings.sms_provider == "log":
+        return LoggingSmsProvider()
+    if settings.sms_provider == "post_tm":
+        if not settings.sms_api_token:
+            raise RuntimeError("SMS_API_TOKEN is required for the post_tm provider")
+        return PostTmSmsProvider(
+            token=settings.sms_api_token, base_url=settings.sms_base_url,
+            timeout=settings.sms_timeout_seconds,
+        )
+    raise RuntimeError(f"unknown SMS provider {settings.sms_provider!r}")
+
+
+_cache: ProviderCache[SmsProvider] = ProviderCache(_build_sms_provider)
 
 
 def get_sms_provider() -> SmsProvider:
-    global _provider
-    if _provider is None:
-        settings = get_settings()
-        if settings.sms_provider == "log":
-            _provider = LoggingSmsProvider()
-        elif settings.sms_provider == "post_tm":
-            if not settings.sms_api_token:
-                raise RuntimeError("SMS_API_TOKEN is required for the post_tm provider")
-            _provider = PostTmSmsProvider(
-                token=settings.sms_api_token, base_url=settings.sms_base_url,
-                timeout=settings.sms_timeout_seconds,
-            )
-        else:
-            raise RuntimeError(f"unknown SMS provider {settings.sms_provider!r}")
-    return _provider
+    return _cache.get()
 
 
 def reset_sms_provider() -> None:
     """Drop the cached provider. Tests use this; production never does."""
-    global _provider
-    _provider = None
+    _cache.reset()

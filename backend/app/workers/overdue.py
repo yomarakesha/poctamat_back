@@ -1,6 +1,8 @@
 """Walk parcels through the overdue stages.
 
-Run it by hand until a scheduler exists:
+Ticked automatically by the in-process scheduler in `app.main` every
+`WORKER_INTERVAL_SECONDS`. Run it by hand only to check it against the live
+database out of band:
 
     ./.venv/Scripts/python.exe -m app.workers.overdue
 

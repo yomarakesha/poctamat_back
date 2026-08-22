@@ -50,20 +50,34 @@ async def _run_workers_forever(interval_seconds: int) -> None:
 
     Runs immediately on startup — so a process that was down for a while
     catches up right away rather than waiting a full interval — then on the
-    configured cadence. One bad tick is logged and the loop keeps going: a
-    worker that dies silently on the first exception is worse than one that
-    is occasionally late.
+    configured cadence. Each worker gets its own try/except: a persistent
+    failure in one must not starve the other of every tick forever, which is
+    what sharing one try block would do.
+
+    Single-process only, like `app.core.kvstore`: two processes each running
+    this loop would race to release the same hold and could each send the
+    same reminder to the same customer. This deployment runs one uvicorn
+    worker, which is what makes that safe.
     """
     while True:
         try:
             released = await holds.run_once()
-            counts = await overdue.run_once()
-            if released or any(counts.values()):
-                logger.info("workers: released=%d escalation=%s", released, counts)
+            if released:
+                logger.info("workers: released %d expired hold(s)", released)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - a bad tick must not kill the loop
-            logger.exception("worker tick failed")
+            logger.exception("holds worker tick failed")
+
+        try:
+            counts = await overdue.run_once()
+            if any(counts.values()):
+                logger.info("workers: escalation=%s", counts)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - a bad tick must not kill the loop
+            logger.exception("overdue worker tick failed")
+
         await asyncio.sleep(interval_seconds)
 
 

@@ -174,6 +174,12 @@ async def notify(
                     except Exception as error:  # noqa: BLE001 - one bad device
                         # must not stop delivery to the client's other devices.
                         errors.append(str(error)[:200])
-                if errors:
+                # `error` means nobody got this. A client with two devices
+                # where only one delivery failed still has the notification,
+                # so that failure is not recorded here — `sent_at` already
+                # tells the true story, and a caller branching on `error is
+                # not None` to decide whether to retry must not re-push to
+                # the device that already succeeded.
+                if errors and row.sent_at is None:
                     row.error = "; ".join(errors)[:500]
     return row
