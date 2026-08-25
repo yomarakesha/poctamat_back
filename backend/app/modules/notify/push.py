@@ -134,12 +134,26 @@ class FcmPushProvider:
             message["message"]["data"] = data
 
         if _transport is not None:
-            # Test hook: an isolated one-off client for this call's
-            # MockTransport, never cached, so it cannot leak into a later send
-            # that expects the real one.
+            # Test hook: a one-off client for this call's MockTransport, never
+            # cached, so it cannot displace the shared one. The access token
+            # `_bearer_token` caches IS shared state, so a provider instance
+            # driven through this hook must not then be used for real sends.
             async with httpx.AsyncClient(timeout=self.timeout, transport=_transport) as client:
                 return await self._post(client, message)
         return await self._post(self._shared_client(), message)
+
+    async def aclose(self) -> None:
+        """Release the shared client's connection pool.
+
+        Called on application shutdown. A client that outlives the event loop
+        it was built on leaks its open sockets, and — if a second lifespan
+        runs in the same process, as `uvicorn --reload` does — would fail the
+        first push with `RuntimeError: Event loop is closed`. Safe to call
+        when no client was ever built.
+        """
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
 
 def _build_push_provider() -> PushProvider:
@@ -174,4 +188,18 @@ def get_push_provider() -> PushProvider:
 
 def reset_push_provider() -> None:
     """Drop the cached provider. Tests use this; production never does."""
+    _cache.reset()
+
+
+async def close_push_provider() -> None:
+    """Close the cached provider's connections and drop it.
+
+    `lifespan` calls this on shutdown. Only `FcmPushProvider` holds anything
+    to close, so this is a no-op under the logging provider and when no push
+    was ever sent.
+    """
+    provider = _cache.peek()
+    closer = getattr(provider, "aclose", None)
+    if closer is not None:
+        await closer()
     _cache.reset()

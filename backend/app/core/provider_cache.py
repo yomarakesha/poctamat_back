@@ -23,5 +23,13 @@ class ProviderCache(Generic[T]):
             self._value = self._factory()
         return self._value
 
+    def peek(self) -> T | None:
+        """The cached instance, or None when nothing has been built yet.
+
+        For shutdown paths that must release a provider's resources without
+        building one that was never used.
+        """
+        return self._value
+
     def reset(self) -> None:
         self._value = None

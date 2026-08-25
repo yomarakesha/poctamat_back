@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from sqlalchemy import select
@@ -13,6 +14,8 @@ from app.modules.notify.models import (
 )
 from app.modules.notify.push import get_push_provider
 from app.modules.notify.sms import get_sms_provider
+
+logger = logging.getLogger("app.notify")
 
 # (kind, language) -> (title, in-app body, SMS text). The in-app body never
 # carries a code: the feed is readable by anyone holding an unlocked phone,
@@ -176,10 +179,20 @@ async def notify(
                         errors.append(str(error)[:200])
                 # `error` means nobody got this. A client with two devices
                 # where only one delivery failed still has the notification,
-                # so that failure is not recorded here — `sent_at` already
-                # tells the true story, and a caller branching on `error is
-                # not None` to decide whether to retry must not re-push to
-                # the device that already succeeded.
-                if errors and row.sent_at is None:
-                    row.error = "; ".join(errors)[:500]
+                # so that failure is not recorded on the row — `sent_at`
+                # already tells the true story, and a caller branching on
+                # `error is not None` to decide whether to retry must not
+                # re-push to the device that already succeeded. The failure
+                # is logged instead: a token the provider rejects is a token
+                # to revoke, and dropping it silently means every later
+                # notification keeps fanning out to a device that is gone.
+                if errors:
+                    if row.sent_at is None:
+                        row.error = "; ".join(errors)[:500]
+                    else:
+                        logger.warning(
+                            "push %s: %d of %d device(s) failed: %s",
+                            kind.value, len(errors), len(devices),
+                            "; ".join(errors),
+                        )
     return row

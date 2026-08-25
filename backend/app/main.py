@@ -31,6 +31,7 @@ from app.core.config import get_settings
 from app.core.context import RequestContextMiddleware
 from app.core.errors import install_error_handlers
 from app.core.idempotency import IdempotencyMiddleware
+from app.modules.notify.push import close_push_provider
 from app.workers import holds, overdue
 
 API_PREFIX = "/api/v1"
@@ -92,6 +93,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+        # The push provider keeps one HTTP client alive across sends; it has
+        # to be closed on this loop, not left for the garbage collector to
+        # find after the loop is gone.
+        await close_push_provider()
 
 
 def create_app() -> FastAPI:
