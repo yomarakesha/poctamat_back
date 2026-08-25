@@ -1,0 +1,114 @@
+14:55:10 [hook] session-start: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:55:14 [hook] save-session: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:55:14 [force] bypassing cooldown + min msgs
+14:55:14 [extract] session d1678514-3712-46b2-83d3-2c50e0fde6d4
+14:55:14 [extract] 17 exchanges (1 human)
+14:55:15 [hook] run-consolidation: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:55:15 [haiku] calling (branch: main)
+14:55:15 [rotate] archived 2 logs → logs-2026-08-part6.tar.gz
+14:55:16 [consolidation] start
+14:55:18 [haiku] WARNING: this CLI rejected --setting-sources (Failed to authenticate: OAuth session expired and could not be refreshed); retrying WITHOUT hook isolation so saves keep working. The nested call will run with your hooks registered — a hook that blocks it returns its block message as if it were the model's reply (#202).
+14:55:18 [haiku] WARNING: this CLI rejected --setting-sources (Failed to authenticate: OAuth session expired and could not be refreshed); retrying WITHOUT hook isolation so saves keep working. The nested call will run with your hooks registered — a hook that blocks it returns its block message as if it were the model's reply (#202).
+14:55:23 [haiku] call exited 1; tokens already spent are unknown — the failure carried no usage block, so this run's reported cost is lower than what it actually cost
+14:55:23 [haiku] ERROR: call-haiku error: claude exited 1: Failed to authenticate: OAuth session expired and could not be refreshed
+14:55:23 [haiku] failure 1/3 on this span — will retry next run
+14:55:24 [haiku] call exited 1; tokens already spent are unknown — the failure carried no usage block, so this run's reported cost is lower than what it actually cost
+14:55:24 [consolidation] ERROR: pipeline failed — Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\yomarakesha\.claude\plugins\cache\claude-plugins-official\remember\0.20.0\pipeline\shell.py", line 683, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\yomarakesha\.claude\plugins\cache\claude-plugins-official\remember\0.20.0\pipeline\shell.py", line 670, in main
+    cmd_consolidate(
+    ~~~~~~~~~~~~~~~^
+        staging_dir=sys.argv[2],
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        snapshot_dir=sys.argv[6] if len(sys.argv) > 6 else "",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\yomarakesha\.claude\plugins\cache\claude-plugins-official\remember\0.20.0\pipeline\shell.py", line 525, in cmd_consolidate
+    result = consolidate(staging_contents, recent, archive,
+                         max_prompt_bytes=max_prompt_bytes)
+  File "C:\Users\yomarakesha\.claude\plugins\cache\claude-plugins-official\remember\0.20.0\pipeline\consolidate.py", line 324, in consolidate
+    result = call_haiku(prompt, timeout=180)
+  File "C:\Users\yomarakesha\.claude\plugins\cache\claude-plugins-official\remember\0.20.0\pipeline\haiku.py", line 735, in call_haiku
+    raise RuntimeError(
+    ...<2 lines>...
+    )
+RuntimeError: claude exited 1: Failed to authenticate: OAuth session expired and could not be refreshed
+14:58:08 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:58:27 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:58:38 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:58:41 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:58:51 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:58:52 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:59:04 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:59:04 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:59:20 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:59:24 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:59:38 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:59:44 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+14:59:56 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:00:09 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:01:03 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:01:03 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:01:15 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:01:20 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:01:31 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:02:03 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:02:22 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:02:23 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:02:47 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:02:47 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:03:07 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:03:22 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:03:26 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:03:39 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:03:55 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:04:04 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:04:08 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:04:12 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:05:55 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:05:55 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:05:56 [hook] save-session: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:05:57 [extract] session 53c54006-34ec-4d2f-a577-1f204a18ca7a
+15:05:57 [extract] 13 exchanges (6 human)
+15:05:57 [haiku] calling (branch: main)
+15:06:07 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:06:07 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:06:18 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:06:19 [tokens] tokens: 9+19177cache→1649out ($0.029180)
+15:06:20 [write] appended: ## 15:05 | main
+15:06:20 [write] position → 105
+15:06:21 [ndc] now.md → today-2026-08-25.md
+15:06:22 [ndc] running (PID 1354)
+15:06:34 [ndc] tokens: 9+20036cache→951out ($0.014248)
+15:06:34 [ndc] 184→165b (-10%)
+15:06:44 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:07:30 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:07:55 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:08:13 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:08:15 [hook] save-session: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:08:15 [extract] session 53c54006-34ec-4d2f-a577-1f204a18ca7a
+15:08:15 [extract] 8 exchanges (0 human)
+15:08:15 [extract] 0 human msgs < 3, skip
+15:08:31 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:08:48 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:09:01 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:09:38 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:10:01 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:10:28 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:10:30 [hook] save-session: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:10:30 [extract] session 53c54006-34ec-4d2f-a577-1f204a18ca7a
+15:10:31 [extract] 14 exchanges (0 human)
+15:10:31 [extract] 0 human msgs < 3, skip
+15:12:08 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:14:33 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:14:35 [hook] save-session: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
+15:14:35 [extract] session 53c54006-34ec-4d2f-a577-1f204a18ca7a
+15:14:35 [extract] 18 exchanges (1 human)
+15:14:36 [extract] 1 human msgs < 3, skip
+15:14:58 [hook] post-tool: PROJECT_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat PIPELINE_DIR=C:/Users/yomarakesha/.claude/plugins/cache/claude-plugins-official/remember/0.20.0 PYTHON=python3 REMEMBER_DIR=C:\Users\yomarakesha\Desktop\projects\poctamat/.remember
