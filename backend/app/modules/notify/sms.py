@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -16,11 +19,22 @@ class SentMessage:
     text: str
 
 
+@dataclass(frozen=True)
+class DeliveryEvent:
+    provider_message_id: str
+    delivered: bool
+    status: str
+    error: str | None = None
+
+
 class SmsProvider(Protocol):
     name: str
 
     async def send(self, phone: str, text: str) -> str:
         """Deliver a message and return the provider's id for it."""
+
+    def parse_delivery_report(self, headers: dict[str, str], body: bytes) -> DeliveryEvent:
+        """Verify the callback's signature and read the result out of it."""
 
 
 @dataclass
@@ -39,6 +53,18 @@ class LoggingSmsProvider:
         self.outbox.append(SentMessage(phone=phone, text=text))
         logger.info("sms to %s (%d chars)", phone, len(text))
         return f"log-{len(self.outbox)}"
+
+    def parse_delivery_report(self, headers: dict[str, str], body: bytes) -> DeliveryEvent:
+        # No gateway to forge a signature from in development, so none is
+        # checked here — this provider is never wired to a public endpoint.
+        payload = json.loads(body)
+        status = payload["status"]
+        return DeliveryEvent(
+            provider_message_id=str(payload["message_id"]),
+            delivered=status == "delivered",
+            status=status,
+            error=payload.get("error"),
+        )
 
 
 @dataclass
@@ -79,6 +105,32 @@ class PostTmSmsProvider:
             return str(response.json().get("id", ""))
         except ValueError:
             return ""
+
+    def parse_delivery_report(self, headers: dict[str, str], body: bytes) -> DeliveryEvent:
+        # post.tm has not documented its delivery-callback shape or signature
+        # scheme yet — same open question the payment webhook has for its
+        # acquirer. Provisional until the partner confirms: HMAC-SHA256 over
+        # the raw body with `SMS_WEBHOOK_SECRET`, in `X-Webhook-Signature`.
+        settings = get_settings()
+        signature = (
+            headers.get("x-webhook-signature")
+            or headers.get("X-Webhook-Signature")
+            or ""
+        )
+        expected = hmac.new(
+            settings.sms_webhook_secret.encode(), body, hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError("bad signature")
+
+        payload = json.loads(body)
+        status = payload["status"]
+        return DeliveryEvent(
+            provider_message_id=str(payload["message_id"]),
+            delivered=status == "delivered",
+            status=status,
+            error=payload.get("error"),
+        )
 
 
 def _build_sms_provider() -> SmsProvider:

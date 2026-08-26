@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     sms_api_token: str = ""
     sms_base_url: str = "https://sms.post.tm"
     sms_timeout_seconds: float = 10.0
+    # Signs the delivery-report webhook. The gateway's real callback scheme is
+    # unconfirmed — same open question as the payment webhook's signature —
+    # so this is provisional until the partner documents it.
+    sms_webhook_secret: str = "dev-sms-webhook-secret-change-me"
 
     # Push. "log" records instead of sending, same as SMS in development and in
     # tests. "fcm" is Firebase Cloud Messaging HTTP v1, which serves both

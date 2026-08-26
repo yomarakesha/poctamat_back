@@ -1,6 +1,16 @@
+from sqlalchemy import select
+
 from app.modules.catalog.models import Cell
+from app.modules.notify.models import Notification
 from app.modules.notify.sms import get_sms_provider
 from tests.helpers import set_tariffs
+
+
+async def _last_notification(session, phone):
+    return await session.scalar(
+        select(Notification).where(Notification.phone == phone)
+        .order_by(Notification.created_at.desc())
+    )
 
 
 async def test_the_login_code_is_sent_by_sms(client):
@@ -131,3 +141,71 @@ async def test_the_pickup_code_cannot_be_rotated_before_the_parcel_is_in(
     response = await post_action(created.json()["id"], "pickup-code/rotate")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "PICKUP_CODE_NOT_ISSUED_YET"
+
+
+async def test_a_delivery_report_marks_the_sms_delivered(client, session):
+    phone = "+99362123498"
+    await client.post("/api/v1/auth/otp/request", json={"phone": phone})
+    row = await _last_notification(session, phone)
+    assert row.provider_message_id is not None
+    assert row.delivered_at is None
+
+    report = await client.post(
+        "/api/v1/webhooks/sms/log",
+        json={"message_id": row.provider_message_id, "status": "delivered"},
+    )
+    assert report.status_code == 200
+
+    updated = await _last_notification(session, phone)
+    assert updated.delivery_status == "delivered"
+    assert updated.delivered_at is not None
+
+
+async def test_a_failed_delivery_is_recorded_without_a_retry(client, session):
+    phone = "+99362123497"
+    await client.post("/api/v1/auth/otp/request", json={"phone": phone})
+    row = await _last_notification(session, phone)
+
+    report = await client.post(
+        "/api/v1/webhooks/sms/log",
+        json={"message_id": row.provider_message_id, "status": "undelivered",
+              "error": "handset unreachable"},
+    )
+    assert report.status_code == 200
+
+    updated = await _last_notification(session, phone)
+    assert updated.delivery_status == "undelivered"
+    assert updated.delivered_at is None
+    assert updated.error == "handset unreachable"
+
+
+async def test_a_report_for_an_unknown_message_id_is_still_accepted(client):
+    # A retried or stale callback must not become an error the gateway retries
+    # forever; there is simply nothing here to update.
+    response = await client.post(
+        "/api/v1/webhooks/sms/log",
+        json={"message_id": "log-does-not-exist", "status": "delivered"},
+    )
+    assert response.status_code == 200
+
+
+async def test_an_unknown_sms_provider_is_refused(client):
+    response = await client.post(
+        "/api/v1/webhooks/sms/carrier-pigeon",
+        json={"message_id": "x", "status": "delivered"},
+    )
+    assert response.status_code == 404
+
+
+async def test_the_signed_provider_rejects_an_unsigned_report(client):
+    # post_tm is not the active provider in tests, but its signature check
+    # runs the same way in isolation as it would in production.
+    from app.modules.notify.sms import PostTmSmsProvider
+
+    provider = PostTmSmsProvider(token="unused")
+    body = b'{"message_id": "abc", "status": "delivered"}'
+    try:
+        provider.parse_delivery_report({"x-webhook-signature": "nope"}, body)
+        assert False, "expected a signature failure"
+    except ValueError:
+        pass

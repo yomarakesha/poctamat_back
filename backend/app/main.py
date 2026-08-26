@@ -27,6 +27,7 @@ from app.api.public import catalog as public_catalog
 from app.api.public import media as public_media
 from app.api.public import postamats as public_postamats
 from app.api.webhooks import payments as payment_webhooks
+from app.api.webhooks import sms as sms_webhooks
 from app.core.config import get_settings
 from app.core.context import RequestContextMiddleware
 from app.core.errors import install_error_handlers
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(public_media.router, prefix=API_PREFIX)
     app.include_router(public_postamats.router, prefix=API_PREFIX)
     app.include_router(payment_webhooks.router, prefix=API_PREFIX)
+    app.include_router(sms_webhooks.router, prefix=API_PREFIX)
     return app
 
 

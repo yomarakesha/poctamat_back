@@ -13,7 +13,7 @@ from app.modules.notify.models import (
     NotificationKind,
 )
 from app.modules.notify.push import get_push_provider
-from app.modules.notify.sms import get_sms_provider
+from app.modules.notify.sms import DeliveryEvent, get_sms_provider
 
 logger = logging.getLogger("app.notify")
 
@@ -150,7 +150,9 @@ async def notify(
             row.error = "no phone number"
         else:
             try:
-                await get_sms_provider().send(phone, sms.format(**params))
+                row.provider_message_id = await get_sms_provider().send(
+                    phone, sms.format(**params)
+                )
                 row.sent_at = utcnow()
             except Exception as error:  # noqa: BLE001 - a provider failure is data
                 # A failed SMS must not fail the booking that triggered it. The
@@ -195,4 +197,33 @@ async def notify(
                             kind.value, len(errors), len(devices),
                             "; ".join(errors),
                         )
+    return row
+
+
+async def record_delivery(
+    session: AsyncSession, event: DeliveryEvent
+) -> Notification | None:
+    """Match a gateway's delivery report back to the SMS it describes.
+
+    Returns None for an id the gateway names that we never sent — most likely
+    a retried callback for a notification purged by retention, not an attack
+    worth surfacing to the caller as an error.
+    """
+    row = await session.scalar(
+        select(Notification).where(
+            Notification.provider_message_id == event.provider_message_id,
+            Notification.channel == NotificationChannel.SMS,
+        )
+    )
+    if row is None:
+        logger.warning(
+            "delivery report for unknown message id %s", event.provider_message_id
+        )
+        return None
+
+    row.delivery_status = event.status
+    if event.delivered:
+        row.delivered_at = utcnow()
+    elif event.error:
+        row.error = event.error[:500]
     return row

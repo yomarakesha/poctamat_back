@@ -1503,6 +1503,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /webhooks/sms/{provider}:
+    post:
+      tags: [Webhooks]
+      operationId: smsDeliveryCallback
+      summary: SMS gateway delivery report (server-to-server)
+      description: |
+        Documented for the backend developer, never called by a front-end. Turns a
+        message that was handed to the gateway into one that was actually delivered
+        or bounced — it does not retry and does not touch booking state. Confirmed
+        only for `post_tm`: `{"message_id", "status": "delivered"|"failed"|
+        "undelivered", "error"}`, signed `X-Webhook-Signature: HMAC-SHA256(body,
+        SMS_WEBHOOK_SECRET)`. The gateway has not documented this callback yet —
+        same open question the payment webhook has for its acquirer's signature —
+        so the shape and scheme here are provisional.
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [post_tm, log]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Provider-specific payload, passed through as received.
+              additionalProperties: true
+      responses:
+        '200':
+          description: >-
+            Accepted. Also the answer for a message id this server has no record
+            of — a retried or stale callback is not an error the gateway needs to
+            see.
+        '400':
+          description: 'Codes: `CALLBACK_SIGNATURE_INVALID`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'Unknown provider. Code: `NOT_FOUND`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # ─────────────────────────────────────────────────────────────── Access codes
 
   /bookings/{booking_id}/deposit-code/rotate:
