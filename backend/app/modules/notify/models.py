@@ -50,7 +50,7 @@ class Notification(UUIDPrimaryKey, Timestamped, Base):
     error: Mapped[str | None] = mapped_column(String(500))
     # Set only for SMS, from what the provider's send call returned. The
     # delivery webhook has nothing else to match its report against.
-    provider_message_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    provider_message_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivery_status: Mapped[str | None] = mapped_column(String(16))
 

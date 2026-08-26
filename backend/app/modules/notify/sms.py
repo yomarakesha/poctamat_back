@@ -13,6 +13,13 @@ from app.core.provider_cache import ProviderCache
 logger = logging.getLogger("app.sms")
 
 
+def _parse_payload(body: bytes) -> dict[str, Any]:
+    payload = json.loads(body)
+    if not isinstance(payload, dict):
+        raise ValueError("delivery report payload must be a JSON object")
+    return payload
+
+
 @dataclass
 class SentMessage:
     phone: str
@@ -57,7 +64,7 @@ class LoggingSmsProvider:
     def parse_delivery_report(self, headers: dict[str, str], body: bytes) -> DeliveryEvent:
         # No gateway to forge a signature from in development, so none is
         # checked here — this provider is never wired to a public endpoint.
-        payload = json.loads(body)
+        payload = _parse_payload(body)
         status = payload["status"]
         return DeliveryEvent(
             provider_message_id=str(payload["message_id"]),
@@ -102,9 +109,14 @@ class PostTmSmsProvider:
         # raises and is stored on the notification rather than lost.
         response.raise_for_status()
         try:
-            return str(response.json().get("id", ""))
+            message_id = response.json().get("id")
         except ValueError:
-            return ""
+            message_id = None
+        if not message_id:
+            # A blank id can never be matched back to a delivery report, and
+            # storing one anyway would let two such sends collide on it.
+            raise RuntimeError("gateway accepted the message but returned no id")
+        return str(message_id)
 
     def parse_delivery_report(self, headers: dict[str, str], body: bytes) -> DeliveryEvent:
         # post.tm has not documented its delivery-callback shape or signature
@@ -123,7 +135,7 @@ class PostTmSmsProvider:
         if not hmac.compare_digest(signature, expected):
             raise ValueError("bad signature")
 
-        payload = json.loads(body)
+        payload = _parse_payload(body)
         status = payload["status"]
         return DeliveryEvent(
             provider_message_id=str(payload["message_id"]),

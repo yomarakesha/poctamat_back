@@ -221,7 +221,7 @@ async def record_delivery(
         )
         return None
 
-    row.delivery_status = event.status
+    row.delivery_status = event.status[:16]
     if event.delivered:
         row.delivered_at = utcnow()
     elif event.error:
