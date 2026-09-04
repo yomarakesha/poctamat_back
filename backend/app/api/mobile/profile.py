@@ -12,7 +12,11 @@ from app.core.pagination import CursorMeta, CursorParams, cursor_params, paginat
 from app.core.types import utc_isoformat
 from app.modules.catalog.models import City
 from app.modules.identity.models import Client
-from app.modules.notify.models import Notification, NotificationSettings
+from app.modules.notify.models import (
+    Notification,
+    NotificationChannel,
+    NotificationSettings,
+)
 
 router = APIRouter(tags=["profile"])
 
@@ -116,10 +120,20 @@ async def _settings_for(session: AsyncSession, client: Client) -> NotificationSe
     return row
 
 
+# The feed is the in-app channel and nothing else. A `Notification` row is
+# written for every channel — a push carries its own `sent_at` and `error` so
+# a failed delivery can be looked at — and the reminder that goes out both
+# in-app and as a push writes two rows with the same title and body. Without
+# this filter the client sees that reminder twice and its badge counts it
+# twice.
+_FEED = Notification.channel == NotificationChannel.IN_APP
+
+
 async def _unread_count(session: AsyncSession, client: Client) -> int:
     return await session.scalar(
         select(func.count()).select_from(Notification).where(
-            Notification.client_id == client.id, Notification.read_at.is_(None)
+            Notification.client_id == client.id, Notification.read_at.is_(None),
+            _FEED,
         )
     ) or 0
 
@@ -182,7 +196,7 @@ async def list_notifications(
     session: AsyncSession = Depends(get_session),
     client: Client = Depends(require_client),
 ) -> NotificationFeed:
-    stmt = select(Notification).where(Notification.client_id == client.id)
+    stmt = select(Notification).where(Notification.client_id == client.id, _FEED)
     if unread_only:
         stmt = stmt.where(Notification.read_at.is_(None))
     rows, meta = await paginate_cursor(session, stmt, params, Notification.created_at)
@@ -203,7 +217,8 @@ async def mark_read(
         update(Notification)
         # Scoped to the caller on every path: an id list from a client is not a
         # licence to touch somebody else's row.
-        .where(Notification.client_id == client.id, Notification.read_at.is_(None))
+        .where(Notification.client_id == client.id, Notification.read_at.is_(None),
+               _FEED)
         .values(read_at=utcnow())
     )
     if payload.notification_ids is not None:

@@ -32,7 +32,7 @@ from app.core.config import get_settings
 from app.core.context import RequestContextMiddleware
 from app.core.errors import install_error_handlers
 from app.core.idempotency import IdempotencyMiddleware
-from app.modules.notify.push import close_push_provider
+from app.modules.notify.push import close_push_provider, get_push_provider
 from app.workers import holds, overdue
 
 API_PREFIX = "/api/v1"
@@ -85,6 +85,12 @@ async def _run_workers_forever(interval_seconds: int) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Built here rather than on first use. The provider validates its settings
+    # in its constructor, and lazily that check first runs inside `notify()`,
+    # where a provider failure is caught and stored on the notification — so a
+    # deployment with blank FCM credentials would boot green and record every
+    # reminder as if the device had rejected it.
+    get_push_provider()
     task = asyncio.create_task(
         _run_workers_forever(get_settings().worker_interval_seconds)
     )

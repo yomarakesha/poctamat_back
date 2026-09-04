@@ -24,11 +24,12 @@ from app.modules.booking.models import Booking, BookingStatus
 from app.modules.catalog.models import Postamat
 from app.modules.catalog.service import cell_numbers, is_open_at, next_opening_after
 from app.modules.notify.models import (
+    Notification,
     NotificationChannel,
     NotificationKind,
     NotificationSettings,
 )
-from app.modules.notify.service import notify
+from app.modules.notify.service import deliver_pending, notify
 
 WATCHED = (
     BookingStatus.AWAITING_PICKUP,
@@ -82,6 +83,7 @@ async def run_escalation(
     settings = get_settings()
     moment = now or utcnow()
     counts = {"reminded": 0, "expired": 0, "grace": 0, "overdue": 0, "to_remove": 0}
+    pending_pushes: list[Notification] = []
 
     live = list(await session.scalars(
         select(Booking).where(
@@ -132,13 +134,15 @@ async def run_escalation(
                     hours=settings.reminder_hours_before,
                 )
                 if booking.client_id and push_expiring.get(booking.client_id, True):
-                    await notify(
+                    # Recorded now, sent after the commit below: see
+                    # `deliver_pending`.
+                    pending_pushes.append(await notify(
                         session, client_id=booking.client_id, phone=None,
                         kind=NotificationKind.BOOKING_EXPIRING, language=language,
                         channel=NotificationChannel.PUSH, booking_id=booking.id,
                         cell_number=cell_number,
-                        hours=settings.reminder_hours_before,
-                    )
+                        hours=settings.reminder_hours_before, deliver=False,
+                    ))
                 counts["reminded"] += 1
 
         elif booking.status == BookingStatus.EXPIRED:
@@ -176,6 +180,13 @@ async def run_escalation(
                 counts["to_remove"] += 1
 
     await session.commit()
+
+    # The reminders the loop recorded go out only now, with the write lock
+    # released and `reminded_at` durable: a push sent before that commit is
+    # one the customer gets twice if the commit fails.
+    if pending_pushes:
+        await deliver_pending(session, pending_pushes)
+        await session.commit()
     return counts
 
 

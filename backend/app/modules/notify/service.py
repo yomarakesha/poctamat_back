@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -125,6 +126,75 @@ def _template(kind: NotificationKind, language: str) -> tuple[str, str, str]:
     ]
 
 
+async def _send_sms(row: Notification, text: str) -> None:
+    if not row.phone:
+        row.error = "no phone number"
+        return
+    try:
+        row.provider_message_id = await get_sms_provider().send(row.phone, text)
+        row.sent_at = utcnow()
+    except Exception as error:  # noqa: BLE001 - a provider failure is data
+        # A failed SMS must not fail the booking that triggered it. The error
+        # is stored so an operator can see what never arrived.
+        row.error = str(error)[:500]
+
+
+async def _devices_for(
+    session: AsyncSession, client_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, list[PushToken]]:
+    """Every client's active push tokens, in one query.
+
+    One query for the whole batch rather than one per notification: the
+    escalation worker reminds many bookings per tick, against the same single
+    SQLite writer it is already contending with.
+    """
+    found: dict[uuid.UUID, list[PushToken]] = {cid: [] for cid in client_ids}
+    if not client_ids:
+        return found
+    rows = await session.scalars(
+        select(PushToken).where(
+            PushToken.client_id.in_(list(client_ids)),
+            PushToken.revoked_at.is_(None),
+        )
+    )
+    for device in rows:
+        found[device.client_id].append(device)
+    return found
+
+
+async def _send_push(row: Notification, devices: list[PushToken]) -> None:
+    if not row.client_id:
+        row.error = "no client"
+        return
+    if not devices:
+        row.error = "no push tokens"
+        return
+    errors: list[str] = []
+    for device in devices:
+        try:
+            await get_push_provider().send(device.token, row.title, row.body)
+            row.sent_at = utcnow()
+        except Exception as error:  # noqa: BLE001 - one bad device must not
+            # stop delivery to the client's other devices.
+            errors.append(str(error)[:200])
+    # `error` means nobody got this. A client with two devices where only one
+    # delivery failed still has the notification, so that failure is not
+    # recorded on the row — `sent_at` already tells the true story, and a
+    # caller branching on `error is not None` to decide whether to retry must
+    # not re-push to the device that already succeeded. The failure is logged
+    # instead: a token the provider rejects is a token to revoke, and dropping
+    # it silently means every later notification keeps fanning out to a device
+    # that is gone.
+    if errors:
+        if row.sent_at is None:
+            row.error = "; ".join(errors)[:500]
+        else:
+            logger.warning(
+                "push %s: %d of %d device(s) failed: %s",
+                row.kind.value, len(errors), len(devices), "; ".join(errors),
+            )
+
+
 async def notify(
     session: AsyncSession,
     *,
@@ -134,9 +204,20 @@ async def notify(
     language: str,
     channel: NotificationChannel,
     booking_id: uuid.UUID | None = None,
+    deliver: bool = True,
     **params,
 ) -> Notification:
-    """Record a notification and, for SMS, hand it to the provider."""
+    """Record a notification and, for SMS and push, hand it to the provider.
+
+    `deliver=False` records the row and returns without calling a provider,
+    for a batch caller that wants its own state change committed before
+    anything leaves the process; it then passes the rows to
+    `deliver_pending`. Push only — a deferred SMS would have to carry its
+    rendered text, which is deliberately not stored on the row.
+    """
+    if not deliver and channel != NotificationChannel.PUSH:
+        raise ValueError("deferred delivery is push-only")
+
     title, body, sms = _template(kind, language)
     row = Notification(
         client_id=client_id, booking_id=booking_id, kind=kind, channel=channel,
@@ -146,58 +227,36 @@ async def notify(
     session.add(row)
 
     if channel == NotificationChannel.SMS:
-        if not phone:
-            row.error = "no phone number"
-        else:
-            try:
-                row.provider_message_id = await get_sms_provider().send(
-                    phone, sms.format(**params)
-                )
-                row.sent_at = utcnow()
-            except Exception as error:  # noqa: BLE001 - a provider failure is data
-                # A failed SMS must not fail the booking that triggered it. The
-                # error is stored so an operator can see what never arrived.
-                row.error = str(error)[:500]
-
-    elif channel == NotificationChannel.PUSH:
-        if not client_id:
-            row.error = "no client"
-        else:
-            devices = list(await session.scalars(
-                select(PushToken).where(
-                    PushToken.client_id == client_id, PushToken.revoked_at.is_(None),
-                )
-            ))
-            if not devices:
-                row.error = "no push tokens"
-            else:
-                errors: list[str] = []
-                for device in devices:
-                    try:
-                        await get_push_provider().send(device.token, title, row.body)
-                        row.sent_at = utcnow()
-                    except Exception as error:  # noqa: BLE001 - one bad device
-                        # must not stop delivery to the client's other devices.
-                        errors.append(str(error)[:200])
-                # `error` means nobody got this. A client with two devices
-                # where only one delivery failed still has the notification,
-                # so that failure is not recorded on the row — `sent_at`
-                # already tells the true story, and a caller branching on
-                # `error is not None` to decide whether to retry must not
-                # re-push to the device that already succeeded. The failure
-                # is logged instead: a token the provider rejects is a token
-                # to revoke, and dropping it silently means every later
-                # notification keeps fanning out to a device that is gone.
-                if errors:
-                    if row.sent_at is None:
-                        row.error = "; ".join(errors)[:500]
-                    else:
-                        logger.warning(
-                            "push %s: %d of %d device(s) failed: %s",
-                            kind.value, len(errors), len(devices),
-                            "; ".join(errors),
-                        )
+        await _send_sms(row, sms.format(**params))
+    elif channel == NotificationChannel.PUSH and deliver:
+        by_client = await _devices_for(session, {client_id} if client_id else set())
+        await _send_push(row, by_client.get(client_id, []))
     return row
+
+
+async def deliver_pending(
+    session: AsyncSession, rows: Sequence[Notification]
+) -> None:
+    """Send the pushes recorded with `deliver=False`.
+
+    Call this after committing the rows. A provider call is HTTP with a
+    multi-second timeout: made while the recording transaction is still open
+    it holds SQLite's single write lock for the length of the whole batch,
+    and every other writer waits behind it. A push sent before the commit is
+    also a push that gets sent a second time if that commit then fails.
+    """
+    pending = [
+        row for row in rows
+        if row.channel == NotificationChannel.PUSH
+        and row.sent_at is None and row.error is None
+    ]
+    if not pending:
+        return
+    by_client = await _devices_for(
+        session, {row.client_id for row in pending if row.client_id}
+    )
+    for row in pending:
+        await _send_push(row, by_client.get(row.client_id, []))
 
 
 async def record_delivery(

@@ -138,3 +138,47 @@ async def test_the_feed_pages_by_cursor(
 
 async def test_the_feed_needs_a_client_token(client):
     assert (await client.get(FEED)).status_code == 401
+
+
+async def test_the_push_twin_of_a_reminder_is_not_a_second_feed_item(
+    client, session, booking_client, client_token
+):
+    # The expiry reminder is recorded twice — once in-app, once as the push —
+    # with the same title and body. The feed is the in-app channel: showing
+    # both would read as the same reminder arriving twice, and count twice
+    # against the badge.
+    session.add(Notification(
+        client_id=booking_client.id, kind=NotificationKind.BOOKING_EXPIRING,
+        channel=NotificationChannel.IN_APP, title="Скоро истекает", body="Ячейка 7",
+    ))
+    session.add(Notification(
+        client_id=booking_client.id, kind=NotificationKind.BOOKING_EXPIRING,
+        channel=NotificationChannel.PUSH, title="Скоро истекает", body="Ячейка 7",
+    ))
+    await session.commit()
+
+    response = await client.get(FEED,
+                                headers={"Authorization": f"Bearer {client_token}"})
+    body = response.json()
+    assert len(body["items"]) == 1
+    assert body["unread_count"] == 1
+
+
+async def test_marking_everything_read_leaves_the_delivery_rows_alone(
+    client, session, booking_client, client_token
+):
+    # `read_at` is the client's eye on the feed. A push row records a delivery
+    # nobody read in the app, and stamping it would make the two mean the same
+    # thing.
+    push = Notification(
+        client_id=booking_client.id, kind=NotificationKind.BOOKING_EXPIRING,
+        channel=NotificationChannel.PUSH, title="t", body="b",
+    )
+    session.add(push)
+    await _seed(session, booking_client.id, 1)
+
+    response = await client.post(READ, json={},
+                                 headers={"Authorization": f"Bearer {client_token}"})
+    assert response.json()["unread_count"] == 0
+    await session.refresh(push)
+    assert push.read_at is None

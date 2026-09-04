@@ -106,7 +106,9 @@ class FcmPushProvider:
         self._expires_at = time.time() + payload.get("expires_in", 3600)
         return self._access_token
 
-    async def _post(self, client: httpx.AsyncClient, message: dict[str, Any]) -> str:
+    async def _send_once(
+        self, client: httpx.AsyncClient, message: dict[str, Any]
+    ) -> str:
         bearer = await self._bearer_token(client)
         response = await client.post(
             f"https://fcm.googleapis.com/v1/projects/{self.project_id}/messages:send",
@@ -115,6 +117,21 @@ class FcmPushProvider:
         )
         response.raise_for_status()
         return str(response.json().get("name", ""))
+
+    async def _post(self, client: httpx.AsyncClient, message: dict[str, Any]) -> str:
+        try:
+            return await self._send_once(client, message)
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code not in (401, 403):
+                raise
+            # The cached bearer is good for an hour, but rotating the service
+            # account key revokes it early — a routine operation. Without
+            # this every push fails until the cache expires on its own, and
+            # each failure is recorded per device, where it reads as a dead
+            # device token rather than the credential problem it is.
+            self._access_token = None
+            self._expires_at = 0.0
+            return await self._send_once(client, message)
 
     async def send(
         self,
@@ -187,7 +204,19 @@ def get_push_provider() -> PushProvider:
 
 
 def reset_push_provider() -> None:
-    """Drop the cached provider. Tests use this; production never does."""
+    """Drop the cached provider without closing it. Tests use this.
+
+    Synchronous, so it cannot await `aclose()`. That is safe for what calls
+    it — tests run the logging provider, which holds nothing open — and the
+    warning is here so that stops being true loudly rather than by leaking a
+    connection pool. Production shuts down through `close_push_provider`.
+    """
+    provider = _cache.peek()
+    if getattr(provider, "_client", None) is not None:
+        logger.warning(
+            "push provider reset while its HTTP client was open; "
+            "use close_push_provider() to release it"
+        )
     _cache.reset()
 
 

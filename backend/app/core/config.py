@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # app/core/config.py -> app/core -> app -> backend
@@ -80,7 +81,10 @@ class Settings(BaseSettings):
     # in-process from `app.main`'s lifespan. Short enough that a reminder or an
     # expiry is never more than this late; long enough not to hammer SQLite's
     # single writer.
-    worker_interval_seconds: int = 60
+    # Floored at a second: a zero here would turn the lifespan task into a
+    # hot loop opening a database session per iteration for the life of the
+    # process.
+    worker_interval_seconds: int = Field(60, ge=1)
 
     # The overdue clock. Every stage is configuration because the product will
     # tune these without a deploy, and because a literal buried in a worker is a

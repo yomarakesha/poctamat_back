@@ -158,3 +158,60 @@ async def test_the_worker_is_idempotent_within_one_stage(session, postamat):
     second = await run_escalation(session, now=now)
     assert second["expired"] == 0
     assert len(booking.events) == 1
+
+
+async def test_a_batch_of_reminders_costs_one_push_token_query(
+    session, postamat, count_queries
+):
+    # The device lookup used to live inside `notify()`, one SELECT per
+    # reminded booking, issued while the escalation transaction still held
+    # SQLite's single write lock.
+    now = datetime(2026, 8, 17, 12, 0, tzinfo=timezone.utc)
+    for _ in range(3):
+        booking = await _parcel(session, postamat, now + timedelta(hours=1))
+        session.add(PushToken(client_id=booking.client_id, token=f"dev-{booking.id}",
+                              platform="android"))
+    await session.commit()
+
+    before = len(count_queries)
+    counts = await run_escalation(session, now=now)
+
+    assert counts["reminded"] == 3
+    lookups = [
+        statement for statement in count_queries[before:]
+        if "FROM push_tokens" in statement
+    ]
+    assert len(lookups) == 1
+
+
+async def test_a_reminder_is_pushed_only_after_its_state_is_committed(
+    session, postamat, monkeypatch
+):
+    # `reminded_at` is what stops the next tick sending the same reminder
+    # again, and the provider call is HTTP with a multi-second timeout. Sent
+    # from inside the escalation transaction it would hold SQLite's single
+    # write lock for the length of the batch, and a failed commit afterwards
+    # would turn into a second push to a customer who already got one.
+    now = datetime(2026, 8, 17, 12, 0, tzinfo=timezone.utc)
+    booking = await _parcel(session, postamat, now + timedelta(hours=1))
+    session.add(PushToken(client_id=booking.client_id, token="dev-1",
+                          platform="android"))
+    await session.commit()
+
+    order: list[str] = []
+    provider = get_push_provider()
+    original_send, original_commit = provider.send, session.commit
+
+    async def watched_send(token, title, body, data=None):
+        order.append("send")
+        return await original_send(token, title, body, data)
+
+    async def watched_commit():
+        order.append("commit")
+        return await original_commit()
+
+    monkeypatch.setattr(provider, "send", watched_send)
+    monkeypatch.setattr(session, "commit", watched_commit)
+    await run_escalation(session, now=now)
+
+    assert order.index("commit") < order.index("send")
