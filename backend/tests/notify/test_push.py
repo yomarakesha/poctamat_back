@@ -138,6 +138,34 @@ async def test_every_device_failing_is_recorded_as_an_error(session, monkeypatch
     assert row.error is not None
 
 
+async def test_a_device_lookup_failure_is_recorded_on_every_pending_row(
+    session, monkeypatch
+):
+    # `reminded_at` and this row are already committed by the time
+    # `deliver_pending` runs (see `run_escalation`), so a DB error during the
+    # batched token lookup must not strand the row invisibly forever - it
+    # needs to be recorded the same way a provider failure is.
+    client_id = uuid.uuid4()
+    row = await notify(
+        session, client_id=client_id, phone=None,
+        kind=NotificationKind.BOOKING_EXPIRING, language="ru",
+        channel=NotificationChannel.PUSH, booking_id=None, cell_number=7,
+        hours=1, deliver=False,
+    )
+    await session.commit()
+
+    async def failing_devices_for(session, client_ids):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(notify_service, "_devices_for", failing_devices_for)
+
+    await notify_service.deliver_pending(session, [row])
+    await session.commit()
+
+    assert row.sent_at is None
+    assert row.error == "database is locked"
+
+
 async def test_a_partly_delivered_push_logs_the_devices_that_failed(
     session, monkeypatch, caplog
 ):

@@ -252,9 +252,28 @@ async def deliver_pending(
     ]
     if not pending:
         return
-    by_client = await _devices_for(
-        session, {row.client_id for row in pending if row.client_id}
-    )
+    try:
+        by_client = await _devices_for(
+            session, {row.client_id for row in pending if row.client_id}
+        )
+    except Exception as error:  # noqa: BLE001 - a lookup failure is data too
+        # Without this, a DB error here (e.g. SQLite's single writer
+        # rejecting a concurrent statement) would propagate past the
+        # already-committed `reminded_at` and strand every row in this batch
+        # as sent_at=None, error=None forever: invisible to any operator
+        # query and never retried, since `_send_push` - the only place that
+        # sets `error` - is never reached. Roll back so the session is usable
+        # again, then record the failure the same way a provider failure
+        # would be recorded.
+        await session.rollback()
+        message = str(error)[:500]
+        for row in pending:
+            row.error = message
+        logger.warning(
+            "push token lookup failed for %d pending notification(s): %s",
+            len(pending), message,
+        )
+        return
     for row in pending:
         await _send_push(row, by_client.get(row.client_id, []))
 
